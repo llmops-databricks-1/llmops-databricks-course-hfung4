@@ -1,7 +1,7 @@
 [project]
-name = "llmops-databricks-course-hfung4"
+name = "semantic-scholar-curator"
 dynamic = ["version"]
-description = "llmops-databricks-course-hfung4 - LLMOps Course on Databricks"
+description = "Semantic scholar curator"
 requires-python = ">=3.12, <3.13"
 dependencies = [
     "cffi==1.17.1",
@@ -60,6 +60,7 @@ pythonpath = ["."]
 
 [tool.ruff]
 line-length = 90
+exclude = [".claude/"]
 
 select = [
     "F",    # pyflakes rules
