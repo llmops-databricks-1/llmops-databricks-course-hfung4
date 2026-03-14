@@ -98,3 +98,6 @@ dmypy.json
 
 # Databricks VS Code extension auto-generated files
 .databricks/
+
+# Scratch files
+scratch/
