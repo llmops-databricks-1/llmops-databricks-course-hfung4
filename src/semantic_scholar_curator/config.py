@@ -31,30 +31,6 @@ class ProjectConfig(BaseModel):
 
     model_config = {"populate_by_name": True}
 
-    @classmethod
-    def from_yaml(cls, config_path: str, env: str = "dev") -> "ProjectConfig":
-        """Load configuration from YAML file.
-
-        Args:
-            config_path: Path to the YAML configuration file
-            env: Environment name (dev, acc, prd)
-
-        Returns:
-            ProjectConfig instance
-        """
-        if env not in ["prd", "acc", "dev"]:
-            raise ValueError(
-                f"Invalid environment: {env}. Expected 'prd', 'acc', or 'dev'"
-            )
-
-        with open(config_path) as f:
-            config_data = yaml.safe_load(f)
-
-        if env not in config_data:
-            raise ValueError(f"Environment '{env}' not found in config file")
-
-        return cls(**config_data[env])
-
     @property
     def schema(self) -> str:
         """Alias for db_schema for backward compatibility."""
@@ -95,21 +71,31 @@ class ChunkingConfig(BaseModel):
     separator: str = Field("\n\n", description="Separator for chunking")
 
 
-def load_config(
-    config_path: str = "project_config.yml", env: str = "dev"
-) -> ProjectConfig:
-    """Load project configuration.
+class Config(BaseModel):
+    """Top-level configuration combining all config sections."""
+
+    project: ProjectConfig
+    model: ModelConfig
+    vector_search: VectorSearchConfig
+    chunking: ChunkingConfig
+
+
+def load_config(config_path: str = "project_config.yml", env: str = "dev") -> Config:
+    """Load and validate configuration from YAML file.
 
     Args:
         config_path: Path to configuration file
-        env: Environment name
+        env: Environment name (dev, acc, prd)
 
     Returns:
-        ProjectConfig instance
+        Config instance with all sections validated
+
+    Raises:
+        ValidationError: Configuration values don't match expected types or constraints
+        OSError: Configuration file not found
     """
     # Handle relative paths from notebooks
     if not Path(config_path).is_absolute():
-        # Try to find config in parent directories
         current = Path.cwd()
         for _ in range(3):  # Search up to 3 levels
             candidate = current / config_path
@@ -118,7 +104,21 @@ def load_config(
                 break
             current = current.parent
 
-    return ProjectConfig.from_yaml(config_path, env)
+    if env not in ["prd", "acc", "dev"]:
+        raise ValueError(f"Invalid environment: {env}. Expected 'prd', 'acc', or 'dev'")
+
+    with open(config_path) as f:
+        raw = yaml.safe_load(f)
+
+    if env not in raw:
+        raise ValueError(f"Environment '{env}' not found in config file")
+
+    return Config(
+        project=ProjectConfig(**raw[env]),
+        model=ModelConfig(**raw.get("model_config", {})),
+        vector_search=VectorSearchConfig(**raw.get("vector_search", {})),
+        chunking=ChunkingConfig(**raw.get("chunking", {})),
+    )
 
 
 def get_env(spark: SparkSession) -> str:
