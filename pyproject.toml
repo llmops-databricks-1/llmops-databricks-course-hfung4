@@ -60,8 +60,9 @@ pythonpath = ["."]
 
 [tool.ruff]
 line-length = 90
-exclude = [".claude/"]
+exclude = [".claude/", "notebooks/"]
 
+[tool.ruff.lint]
 select = [
     "F",    # pyflakes rules
     "E",    # pycodestyle error rules
