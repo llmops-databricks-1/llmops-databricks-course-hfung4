@@ -308,6 +308,27 @@ class DataProcessor:
             return chunks
 
     @staticmethod
+    def _extract_paper_id(path: str) -> str:
+        """Extract paper ID from file path.
+
+        NOTE: Volume path format: f"{self.pdf_dir}/{paper_id}.pdf"
+
+        Args:
+            path: File path ending in "<paper_id>.pdf"
+
+        Returns:
+            Paper ID extracted from the filename.
+
+        Example:
+            >>> _extract_paper_id(
+            ...     "/Volumes/catalog/schema/vol/202603211045/abc123.pdf"
+            ... )
+            'abc123'
+        """
+        # strip the .pdf extension, splits stirng on / and get last element
+        return path.replace(".pdf", "").split("/")[-1]
+
+    @staticmethod
     def _clean_chunk(text: str) -> str:
         """Clean and normalize chunk text.
 
