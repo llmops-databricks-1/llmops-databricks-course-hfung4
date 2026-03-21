@@ -19,6 +19,10 @@ from zoneinfo import ZoneInfo
 import requests
 from loguru import logger
 from pyspark.sql import SparkSession
+from pyspark.sql import types as T
+from pyspark.sql.functions import (
+    current_timestamp,
+)
 from semanticscholar import SemanticScholar
 
 from semantic_scholar_curator.config import Config
@@ -74,7 +78,7 @@ class DataProcessor:
         # In Databricks, the spark.catalog is backed by the Unity Catalog
         if self.spark.catalog.tableExists(self.papers_table):
             # Fetch all rows from the table to the driver as a Python list of row objects
-            # But since this is a single aggregted value, the output should be
+            # But since this is a single aggregated value, the output should be
             # [Row(max(processed)='202503181045')]
             result = self.spark.sql(
                 f"""
@@ -100,7 +104,7 @@ class DataProcessor:
         self,
     ) -> list[dict] | None:
         """
-        Download papers from semantic scholoar API and store metadata
+        Download papers from Semantic Scholar API and store metadata
         in semantic_scholar_papers table.
         NOTE: this is done already in the semantic_scholar_data_ingestion.py notebook
         but we will integrate the same code in the DataProcessor class.
@@ -135,13 +139,15 @@ class DataProcessor:
             publication_date_or_year=f"{start_date}:{end_date}",
         )
 
-        # Download papers and collect metadata
+        # Download papers AND collect metadata
         records = []
 
         for paper in papers:
-            paper_id = paper.paperId
+            # Skip papers that are not open access (no downloadable PDF)
             if not paper.openAccessPdf:
                 continue
+            paper_id = paper.paperId
+            # Download paper to Volume with Request package
             pdf_url = paper.openAccessPdf["url"]
             try:
                 response = requests.get(pdf_url, timeout=30)
@@ -151,7 +157,7 @@ class DataProcessor:
                 # Collect metadata
                 records.append(
                     {
-                        "paper_id": paper_id,
+                        "semantic_scholar_id": paper_id,
                         "title": paper.title,
                         "authors": [author.name for author in paper.authors],
                         "summary": paper.abstract,
@@ -166,9 +172,31 @@ class DataProcessor:
             # Avoid hitting API rate limits
             time.sleep(3)
 
-        # Only process if we have records
+        # Only upsert records to metadata table if we have new records
         if len(records) == 0:
             logger.info("No new papers found.")
             return None
 
         logger.info(f"Downloaded {len(records)} papers to {self.pdf_dir}")
+
+        # From the list of dictionaries of metadata (records), create a Spark Dataframe
+        # and persist it as a Delta Table
+
+        # Define schema of the metadata table
+        schema = T.StructType(
+            [
+                T.StructField("semantic_scholar_id", T.StringType(), False),
+                T.StructField("title", T.StringType(), True),
+                T.StructField("authors", T.ArrayType(T.StringType()), True),
+                T.StructField("summary", T.StringType(), True),
+                T.StructField("pdf_url", T.StringType(), True),
+                T.StructField("published", T.LongType(), True),
+                T.StructField("processed", T.LongType(), True),
+                T.StructField("volume_path", T.StringType(), True),
+            ]
+        )
+
+        # Create Spark DataFrame from list of dictionaries (records)
+        _metadata_df = self.spark.createDataFrame(records, schema=schema).withColumn(
+            "ingest_ts", current_timestamp()
+        )
