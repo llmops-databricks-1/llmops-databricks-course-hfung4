@@ -197,6 +197,46 @@ class DataProcessor:
         )
 
         # Create Spark DataFrame from list of dictionaries (records)
-        _metadata_df = self.spark.createDataFrame(records, schema=schema).withColumn(
+        metadata_df = self.spark.createDataFrame(records, schema=schema).withColumn(
             "ingest_ts", current_timestamp()
         )
+
+        # Create Delta table if it doesn't exist, do nothing if table already exists
+        metadata_df.write.format("delta").mode("ignore").saveAsTable(self.paper_table)
+
+        # Merge (upsert) to avoid duplicates:
+        # Insert to table if the record does not exist
+        # in terms of semantic_scholar_id.
+        # Skip duplicates already in the table
+
+        # Create a temp view so it can be referenced in the MERGE SQL statement
+        metadata_df.createOrReplaceTempView("new_papers")
+
+        self.spark.sql(
+            f"""
+        MERGE INTO {self.papers_table} target
+        USING new_papers source
+        ON target.semantic_scholar_id = source.semantic_scholar_id
+        WHEN NOT MATCHED THEN INSERT(
+            semantic_scholar_id,
+            title,
+            authors,
+            summary,
+            pdf_url,
+            published,
+            processed,
+            volume_path)
+            VALUES (
+            source.semantic_scholar_id,
+            source.title,
+            source.authors,
+            source.summary,
+            source.pdf_url,
+            source.published,
+            source.processed,
+            source.volume_path
+            )
+            """
+        )
+        logger.info(f"Merged {len(records)} paper records into {self.papers_table}")
+        return records
