@@ -12,7 +12,7 @@ Vector Search Index (embeddings)
 """
 
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from loguru import logger
@@ -72,7 +72,7 @@ class DataProcessor:
         if self.spark.catalog.tableExists(self.papers_table):
             # Fetch all rows from the table to the driver as a Python list of row objects
             # But since this is a single aggregted value, the output should be
-            # Row(max(processed)='202503181045')]
+            # [Row(max(processed)='202503181045')]
             result = self.spark.sql(
                 f"""
                                     SELECT max(processed)
@@ -84,3 +84,11 @@ class DataProcessor:
             logger.info(
                 f"Found existing papers metadata table. Start searching from: {start}"
             )
+        else:
+            # First run: metadata table does not exist, so search papers
+            # between 3 days ago and current timestamp
+            # So start = current timestamp - 3 days
+            start = (
+                datetime.now(ZoneInfo("America/New_York")) - timedelta(days=3)
+            ).strftime("%Y%m%d%H%M")
+        return start
