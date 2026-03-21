@@ -12,11 +12,14 @@ Vector Search Index (embeddings)
 """
 
 import os
+import time
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
+import requests
 from loguru import logger
 from pyspark.sql import SparkSession
+from semanticscholar import SemanticScholar
 
 from semantic_scholar_curator.config import Config
 
@@ -92,3 +95,80 @@ class DataProcessor:
                 datetime.now(ZoneInfo("America/New_York")) - timedelta(days=3)
             ).strftime("%Y%m%d%H%M")
         return start
+
+    def download_and_store_papers(
+        self,
+    ) -> list[dict] | None:
+        """
+        Download papers from semantic scholoar API and store metadata
+        in semantic_scholar_papers table.
+        NOTE: this is done already in the semantic_scholar_data_ingestion.py notebook
+        but we will integrate the same code in the DataProcessor class.
+
+        Returns:
+          List of metadata dicts for papers successfully downloaded in this run,
+          or None if no papers were downloaded.
+        """
+        # Start of the time range for paper downloads
+        start = self._get_range_start()
+
+        # Convert YYYYMMDDHHMM timestamps to YYYY-MM-DD for SemanticScholar API
+        start_date = datetime.strptime(start, "%Y%m%d%H%M").strftime("%Y-%m-%d")
+        end_date = datetime.strptime(self.end, "%Y%m%d%H%M").strftime("%Y-%m-%d")
+
+        # Search for papers with the semantic scholar API
+        client = SemanticScholar()
+        query = (
+            "behavioral science financial decision making "
+            "insurance investment advisory consumer purchase behavior"
+        )
+        papers = client.search_paper(
+            query,
+            fields=[
+                "paperId",
+                "title",
+                "authors",
+                "abstract",
+                "openAccessPdf",
+                "publicationDate",
+            ],
+            publication_date_or_year=f"{start_date}:{end_date}",
+        )
+
+        # Download papers and collect metadata
+        records = []
+
+        for paper in papers:
+            paper_id = paper.paperId
+            if not paper.openAccessPdf:
+                continue
+            pdf_url = paper.openAccessPdf["url"]
+            try:
+                response = requests.get(pdf_url, timeout=30)
+                response.raise_for_status()
+                with open(f"{self.pdf_dir}/{paper_id}.pdf", "wb") as f:
+                    f.write(response.content)
+                # Collect metadata
+                records.append(
+                    {
+                        "paper_id": paper_id,
+                        "title": paper.title,
+                        "authors": [author.name for author in paper.authors],
+                        "summary": paper.abstract,
+                        "pdf_url": pdf_url,
+                        "published": int(paper.publicationDate.strftime("%Y%m%d%H%M")),
+                        "processed": int(self.end),
+                        "volume_path": f"{self.pdf_dir}/{paper_id}.pdf",
+                    }
+                )
+            except Exception:
+                logger.warning(f"Paper {paper_id} was not successfully processed.")
+            # Avoid hitting API rate limits
+            time.sleep(3)
+
+        # Only process if we have records
+        if len(records) == 0:
+            logger.info("No new papers found.")
+            return None
+
+        logger.info(f"Downloaded {len(records)} papers to {self.pdf_dir}")
