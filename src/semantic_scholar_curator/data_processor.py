@@ -104,8 +104,8 @@ class DataProcessor:
         self,
     ) -> list[dict] | None:
         """
-        Download papers from Semantic Scholar API and store metadata
-        in semantic_scholar_papers table.
+        Download papers from Semantic Scholar API and extract + persist metadata
+        in the semantic_scholar_papers table.
         NOTE: this is done already in the semantic_scholar_data_ingestion.py notebook
         but we will integrate the same code in the DataProcessor class.
 
@@ -240,3 +240,36 @@ class DataProcessor:
         )
         logger.info(f"Merged {len(records)} paper records into {self.papers_table}")
         return records
+
+    def parse_pdf_with_ai(self) -> None:
+        """Parse PDFs using ai_parse_document and store in ai_parsed_docs table."""
+
+        # Create ai_parsed_docs table if it doesn't exist
+        self.spark.sql(
+            f"""
+            CREATE TABLE IF NOT EXISTS {self.parsed_table} (
+                path STRING,
+                parsed_content STRING,
+                processed LONG
+            )
+            """
+        )
+
+        # Parse raw PDFs with ai_parse_document() from AgentBricks.
+        # Populates parsed_content with a JSON-like string of the parsed document.
+        # NOTE: ai_parse_document() requires Databricks workspace context —
+        # it cannot be run outside of a Databricks workspace or job.
+        self.spark.sql(
+            f"""
+            INSERT INTO {self.parsed_table}
+            SELECT
+                path,
+                ai_parse_document(content) AS parsed_content,
+                {self.end} AS processed
+            FROM READ_FILES(
+                "{self.pdf_dir}",
+                format => 'binaryFile'
+            )
+            """
+        )
+        logger.info(f"Parsed PDFs from {self.pdf_dir} and saved to {self.parsed_table}")
