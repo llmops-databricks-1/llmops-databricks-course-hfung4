@@ -11,7 +11,9 @@ semantic_scholar_chunks_table (clean text for each chunk merged with metadata)
 Vector Search Index (embeddings)
 """
 
+import json
 import os
+import re
 import time
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -273,3 +275,56 @@ class DataProcessor:
             """
         )
         logger.info(f"Parsed PDFs from {self.pdf_dir} and saved to {self.parsed_table}")
+
+        @staticmethod
+        def _extract_chunks(parsed_content_json: str) -> list[tuple[str, str]]:
+            """Extract text chunks from the parsed_content JSON string.
+
+            Args:
+                parsed_content_json: JSON string from ai_parse_document output.
+
+            Returns:
+                List of (chunk_id, content) tuples for text-type elements only.
+
+            Example:
+                >>> json_str = '{"document": {"elements": [
+                ...     {"id": "c1", "type": "text", "content": "Hello"},
+                ...     {"id": "c2", "type": "image", "content": "fig.png"}
+                ... ]}}'
+                >>> _extract_chunks(json_str)
+                [("c1", "Hello")]  # image skipped
+            """
+            # Deserialize the JSON-like string into a Python dict
+            parsed_dict = json.loads(parsed_content_json)
+            chunks = []
+
+            # Navigate to the "elements" list inside the parsed document structure
+            # Only extract elements of type "text" (skip images, tables, etc.)
+            for element in parsed_dict.get("document", {}).get("elements", []):
+                if element.get("type") == "text":
+                    chunk_id = element.get("id", "")
+                    content = element.get("content", "")
+                    chunks.append((chunk_id, content))
+            return chunks
+
+    @staticmethod
+    def _clean_chunk(text: str) -> str:
+        """Clean and normalize chunk text.
+
+        Args:
+            text (str): Raw text content
+
+        Returns:
+            str: Cleaned text content
+        """
+        # Fix hyphenation across line breaks:
+        # "doc-\nments" -> "documents"
+        cleaned_text = re.sub(r"(\w)-\s*\n\s*(\w)", r"\1\2", text)
+
+        # Collapse internal newlines into spaces
+        cleaned_text = re.sub(r"\s*\n\s*", " ", cleaned_text)
+
+        # Collapse repeated whitespace
+        cleaned_text = re.sub(r"\s+", " ", cleaned_text)
+
+        return cleaned_text.strip()
