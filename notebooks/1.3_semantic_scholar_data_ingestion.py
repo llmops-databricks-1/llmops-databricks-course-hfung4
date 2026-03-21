@@ -136,7 +136,9 @@ def fetch_semantic_scholar_papers(
         authors = []
         if getattr(result, "authors", None):
             authors = [
-                author.name for author in result.authors if getattr(author, "name", None)
+                author.name
+                for author in result.authors
+                if getattr(author, "name", None)
             ]
 
         # Default to empty list so joins and index lookups below are safe
