@@ -129,12 +129,8 @@ class DataProcessor:
 
         # Search for papers with the semantic scholar API
         client = SemanticScholar()
-        query = (
-            "behavioral science financial decision making "
-            "insurance investment advisory consumer purchase behavior"
-        )
         papers = client.search_paper(
-            query,
+            self.cfg.project.query,  # query defined in project_config.yml
             fields=[
                 "paperId",
                 "title",

@@ -21,6 +21,9 @@ class ProjectConfig(BaseModel):
     genie_space_id: str | None = Field(
         None, description="Genie space ID for MCP integration"
     )
+    query: str = Field(
+        ..., description="Search query for Semantic Scholar paper ingestion"
+    )
     system_prompt: str = Field(
         default=(
             "You are a helpful AI assistant that helps users"
@@ -113,8 +116,18 @@ def load_config(config_path: str = "project_config.yml", env: str = "dev") -> Co
     if env not in raw:
         raise ValueError(f"Environment '{env}' not found in config file")
 
+    # Merge top-level shared keys (e.g. query) into the env-specific config
+    project_data = {
+        **raw[env],
+        **{
+            k: v
+            for k, v in raw.items()
+            if k not in ["dev", "acc", "prd", "model_config", "vector_search", "chunking"]
+        },
+    }
+
     return Config(
-        project=ProjectConfig(**raw[env]),
+        project=ProjectConfig(**project_data),
         model=ModelConfig(**raw.get("model_config", {})),
         vector_search=VectorSearchConfig(**raw.get("vector_search", {})),
         chunking=ChunkingConfig(**raw.get("chunking", {})),
