@@ -19,7 +19,6 @@ from zoneinfo import ZoneInfo
 
 import requests
 from loguru import logger
-from open_alex_curator.config import Config
 from pyalex import Works
 from pyspark.sql import SparkSession
 from pyspark.sql import types as T
@@ -31,6 +30,8 @@ from pyspark.sql.functions import (
     udf,
 )
 from pyspark.sql.types import ArrayType, StringType, StructField, StructType
+
+from open_alex_curator.config import Config
 
 
 class DataProcessor:
@@ -182,16 +183,12 @@ class DataProcessor:
                 continue
 
             try:
-                response = requests.get(
-                    pdf_url,
-                    timeout=30,
-                    stream=True,
-                    headers={"user-agent": "requests/2.0.0"},
-                )
+                response = requests.get(pdf_url, timeout=30)
                 response.raise_for_status()
                 with open(f"{self.pdf_dir}/{paper_id}.pdf", "wb") as f:
-                    for chunk in response.iter_content(chunk_size=8192):
-                        f.write(chunk)
+                    f.write(response.content)
+
+                # Collect metadata
 
                 # Extract author names
                 authors = [
