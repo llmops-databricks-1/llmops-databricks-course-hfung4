@@ -171,7 +171,8 @@ class DataProcessor:
 
         # Download papers AND collect metadata
         records = []
-        skipped_no_pdf = 0
+        skipped_no_oa_url = 0
+        skipped_not_pdf_content = 0
 
         for work in works:
             # OpenAlex ID is a URL e.g. "https://openalex.org/W123456" — strip prefix
@@ -179,12 +180,20 @@ class DataProcessor:
             pdf_url = (work.get("open_access") or {}).get("oa_url")
 
             if not pdf_url:
-                skipped_no_pdf += 1
+                skipped_no_oa_url += 1
                 continue
 
             try:
                 response = requests.get(pdf_url, timeout=30)
                 response.raise_for_status()
+                content_type = response.headers.get("Content-Type", "")
+                if "application/pdf" not in content_type:
+                    logger.warning(
+                        f"Paper {paper_id}: expected PDF but got "
+                        f"'{content_type}' from {pdf_url}. Skipping."
+                    )
+                    skipped_not_pdf_content += 1
+                    continue
                 with open(f"{self.pdf_dir}/{paper_id}.pdf", "wb") as f:
                     f.write(response.content)
 
@@ -221,11 +230,12 @@ class DataProcessor:
                         "volume_path": f"{self.pdf_dir}/{paper_id}.pdf",
                     }
                 )
-            except Exception:
-                logger.warning(f"Paper {paper_id} was not successfully processed.")
+            except Exception as e:
+                logger.warning(f"Paper {paper_id} was not successfully processed: {e}")
 
         logger.info(
-            f"Skipped {skipped_no_pdf} works with no direct PDF URL. "
+            f"Skipped {skipped_no_oa_url} works with no open-access URL. "
+            f"Skipped {skipped_not_pdf_content} works with non-PDF content. "
             f"Successfully downloaded {len(records)} papers."
         )
 
@@ -332,7 +342,7 @@ class DataProcessor:
         logger.info(f"Parsed PDFs from {self.pdf_dir} and saved to {self.parsed_table}")
 
     @staticmethod
-    def _extract_chunks(parsed_content_json: str) -> list[tuple[str, str]]:
+    def _extract_chunks(parsed_content_json: str) -> list:
         """Extract text chunks from the parsed_content JSON string.
 
         Args:

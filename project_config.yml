@@ -34,8 +34,8 @@ prd:
   genie_space_id: 01f113061bf41578baff744a41bd9ab0
 
 # Shared across all environments
-query: "large language models transformer deep learning machine learning"
-max_results: 100  # Maximum papers to fetch per pipeline run, OpenAlex allows up to 200
+query: "large language models recommender systems retrieval augmented generation"
+max_results: 5  # Maximum papers to fetch per pipeline run, OpenAlex allows up to 200
 
 # Model configuration
 model_config:
