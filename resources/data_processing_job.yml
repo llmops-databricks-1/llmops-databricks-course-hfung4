@@ -19,7 +19,7 @@ resources:
         - task_key: preprocessing
           environment_key: default
           spark_python_task:
-            python_file: scripts/01_process_data.py
+            python_file: ../scripts/01_process_data.py
             parameters:
             - "--env"
             - "${var.env}"  # Environment variable (dev/staging/prod)
