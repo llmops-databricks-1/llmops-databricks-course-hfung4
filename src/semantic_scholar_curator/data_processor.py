@@ -209,7 +209,7 @@ class DataProcessor:
         )
 
         # Create Delta table if it doesn't exist, do nothing if table already exists
-        metadata_df.write.format("delta").mode("ignore").saveAsTable(self.paper_table)
+        metadata_df.write.format("delta").mode("ignore").saveAsTable(self.papers_table)
 
         # Merge (upsert) to avoid duplicates:
         # Insert to table if the record does not exist
@@ -281,36 +281,36 @@ class DataProcessor:
         )
         logger.info(f"Parsed PDFs from {self.pdf_dir} and saved to {self.parsed_table}")
 
-        @staticmethod
-        def _extract_chunks(parsed_content_json: str) -> list[tuple[str, str]]:
-            """Extract text chunks from the parsed_content JSON string.
+    @staticmethod
+    def _extract_chunks(parsed_content_json: str) -> list[tuple[str, str]]:
+        """Extract text chunks from the parsed_content JSON string.
 
-            Args:
-                parsed_content_json: JSON string from ai_parse_document output.
+        Args:
+            parsed_content_json: JSON string from ai_parse_document output.
 
-            Returns:
-                List of (chunk_id, content) tuples for text-type elements only.
+        Returns:
+            List of (chunk_id, content) tuples for text-type elements only.
 
-            Example:
-                >>> json_str = '{"document": {"elements": [
-                ...     {"id": "c1", "type": "text", "content": "Hello"},
-                ...     {"id": "c2", "type": "image", "content": "fig.png"}
-                ... ]}}'
-                >>> _extract_chunks(json_str)
-                [("c1", "Hello")]  # image skipped
-            """
-            # Deserialize the JSON-like string into a Python dict
-            parsed_dict = json.loads(parsed_content_json)
-            chunks = []
+        Example:
+            >>> json_str = '{"document": {"elements": [
+            ...     {"id": "c1", "type": "text", "content": "Hello"},
+            ...     {"id": "c2", "type": "image", "content": "fig.png"}
+            ... ]}}'
+            >>> _extract_chunks(json_str)
+            [("c1", "Hello")]  # image skipped
+        """
+        # Deserialize the JSON-like string into a Python dict
+        parsed_dict = json.loads(parsed_content_json)
+        chunks = []
 
-            # Navigate to the "elements" list inside the parsed document structure
-            # Only extract elements of type "text" (skip images, tables, etc.)
-            for element in parsed_dict.get("document", {}).get("elements", []):
-                if element.get("type") == "text":
-                    chunk_id = element.get("id", "")
-                    content = element.get("content", "")
-                    chunks.append((chunk_id, content))
-            return chunks
+        # Navigate to the "elements" list inside the parsed document structure
+        # Only extract elements of type "text" (skip images, tables, etc.)
+        for element in parsed_dict.get("document", {}).get("elements", []):
+            if element.get("type") == "text":
+                chunk_id = element.get("id", "")
+                content = element.get("content", "")
+                chunks.append((chunk_id, content))
+        return chunks
 
     @staticmethod
     def _extract_paper_id(path: str) -> str:
@@ -330,7 +330,7 @@ class DataProcessor:
             ... )
             'abc123'
         """
-        # strip the .pdf extension, splits stirng on / and get last element
+        # Strip the .pdf extension, split string on / and get last element
         return path.replace(".pdf", "").split("/")[-1]
 
     @staticmethod
@@ -409,27 +409,36 @@ class DataProcessor:
             # Extract paper id from the file path
             df.withColumn("semantic_scholar_id", extract_paper_id_udf(col("path")))
             # Extract chunks from json-like strings in parsed_table
+            # Result: array of {chunk_id, content} structs — one array per PDF
             .withColumn("chunks", extract_chunks_udf(col("parsed_content")))
-            # Explode the chunks so each chunk is a row
+            # Explode: turns one row per paper → many rows, one per text chunk
             .withColumn("chunk", explode(col("chunks")))
             .select(
                 col("semantic_scholar_id"),
                 col("chunk.chunk_id").alias("chunk_id"),
-                # Clean the chunks
+                # Normalize text: fix hyphenation, collapse whitespace
                 clean_chunk_udf(col("chunk.content")).alias("text"),
-                # Concat semantic_scholar_id with chunk_id as primary key
+                # Build primary key by combining paper id and chunk id
                 concat_ws("_", col("semantic_scholar_id"), col("chunk.chunk_id")).alias(
                     "id"
                 ),
             )
-            # Join processed chunks to metadata_df
+            # Left join to enrich each chunk row with paper metadata
+            # (title, authors, summary, year, month, day)
             .join(metadata_df, "semantic_scholar_id", "left")
         )
 
-        # Write the combined chunks and metadata df to a processed chunks table
         semantic_scholar_processed_chunks_table = (
             f"{self.catalog}.{self.schema}.semantic_scholar_chunks_table"
         )
+
+        # Check before writing — once saveAsTable creates the table,
+        # tableExists will return True and CDF would never be enabled
+        is_first_run = not self.spark.catalog.tableExists(
+            semantic_scholar_processed_chunks_table
+        )
+
+        # Write the combined chunks and metadata df to a processed chunks table
         chunks_df.write.mode("append").saveAsTable(
             semantic_scholar_processed_chunks_table
         )
@@ -437,14 +446,15 @@ class DataProcessor:
             f"Processed and saved chunks to {semantic_scholar_processed_chunks_table}"
         )
 
-        # Enable Change Data Feed (need to use changed records in processed chunk table
-        # to update Vector Index)
-        self.spark.sql(
-            f"""
-            ALTER TABLE {semantic_scholar_processed_chunks_table}
-            SET TBLPROPERTIES (delta.enableChangeDataFeed = true)
-            """
-        )
-        logger.info(
-            f"Change Data Feed enabled for {semantic_scholar_processed_chunks_table}"
-        )
+        # Enable Change Data Feed on first run only — allows the Vector Search index
+        # to sync only new/changed chunks rather than reindexing everything
+        if is_first_run:
+            self.spark.sql(
+                f"""
+                ALTER TABLE {semantic_scholar_processed_chunks_table}
+                SET TBLPROPERTIES (delta.enableChangeDataFeed = true)
+                """
+            )
+            logger.info(
+                f"Change Data Feed enabled for {semantic_scholar_processed_chunks_table}"
+            )
