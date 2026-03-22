@@ -12,9 +12,11 @@ Pipeline steps:
 import argparse
 
 from loguru import logger
+from pyspark.sql import SparkSession
+
 from open_alex_curator.config import load_config
 from open_alex_curator.data_processor import DataProcessor
-from pyspark.sql import SparkSession
+from open_alex_curator.vector_search import VectorSearchManager
 
 spark = SparkSession.builder.getOrCreate()
 
@@ -34,3 +36,12 @@ logger.info(f" Schema: {cfg.project.schema}")
 # Step 1: Process new papers
 processor = DataProcessor(spark=spark, config=cfg)
 processor.process_and_save()
+logger.info("✓ Downloaded new papers, parsed with AI, and created chunks successfully!")
+
+# Step 2: Sync Vector Search Index
+vs_manager = VectorSearchManager(config=cfg)
+vs_manager.sync_index()
+
+logger.info("✓ Sync vector search index successfully!")
+
+logger.info("✓ Data processing pipeline complete!")
