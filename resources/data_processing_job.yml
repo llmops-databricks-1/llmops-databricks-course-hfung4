@@ -18,6 +18,7 @@ resources:
       tasks:
         - task_key: preprocessing
           environment_key: default
+          max_retries: 0
           spark_python_task:
             python_file: ../scripts/01_process_data.py
             parameters:

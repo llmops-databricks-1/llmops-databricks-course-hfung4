@@ -24,6 +24,9 @@ class ProjectConfig(BaseModel):
     query: str = Field(
         ..., description="Search query for Semantic Scholar paper ingestion"
     )
+    max_results: int = Field(
+        100, description="Maximum number of papers to fetch per pipeline run"
+    )
     system_prompt: str = Field(
         default=(
             "You are a helpful AI assistant that helps users"

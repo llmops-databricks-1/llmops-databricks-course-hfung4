@@ -11,6 +11,7 @@ semantic_scholar_chunks_table (clean text for each chunk merged with metadata)
 Vector Search Index (embeddings)
 """
 
+import itertools
 import json
 import os
 import re
@@ -140,12 +141,17 @@ class DataProcessor:
                 "publicationDate",
             ],
             publication_date_or_year=f"{start_date}:{end_date}",
+            # page size — the library still paginates beyond this
+            limit=self.cfg.project.max_results,
         )
 
         # Download papers AND collect metadata
         records = []
 
-        for paper in papers:
+        # islice stops asking the iterator for new items after max_results,
+        # so the library never calls _get_next_page() and no extra API call is made.
+        for paper in itertools.islice(papers, self.cfg.project.max_results):
+            time.sleep(3)
             # Skip papers that are not open access (no downloadable PDF)
             if not paper.openAccessPdf:
                 continue
@@ -153,10 +159,16 @@ class DataProcessor:
             # Download paper to Volume with Request package
             pdf_url = paper.openAccessPdf["url"]
             try:
-                response = requests.get(pdf_url, timeout=30)
+                response = requests.get(
+                    pdf_url,
+                    timeout=30,
+                    stream=True,
+                    headers={"user-agent": "requests/2.0.0"},
+                )
                 response.raise_for_status()
                 with open(f"{self.pdf_dir}/{paper_id}.pdf", "wb") as f:
-                    f.write(response.content)
+                    for chunk in response.iter_content(chunk_size=8192):
+                        f.write(chunk)
                 # Collect metadata
                 records.append(
                     {
@@ -172,8 +184,6 @@ class DataProcessor:
                 )
             except Exception:
                 logger.warning(f"Paper {paper_id} was not successfully processed.")
-            # Avoid hitting API rate limits
-            time.sleep(3)
 
         # Only upsert records to metadata table if we have new records
         if len(records) == 0:
