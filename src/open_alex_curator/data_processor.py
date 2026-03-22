@@ -1,7 +1,7 @@
 """
 OpenAlex API
    ↓ (download_and_store_papers in Databricks Volume)
-PDFs in Volume + open_alex_papers table (contains metadata)
+PDFs in Volume + open_alex_paper_metadata table
    ↓ (parse_pdfs_with_ai)
 ai_parsed_docs_table (the parsed document is stored in
 a JSON-like string in the "parse_content" column of the table )
@@ -66,7 +66,9 @@ class DataProcessor:
         # Create the PDF directory if it doesn't already exist
         os.makedirs(self.pdf_dir, exist_ok=True)
         # Delta table name for raw paper metadata
-        self.papers_table = f"{self.catalog}.{self.schema}.open_alex_papers"
+        self.paper_metadata_table = (
+            f"{self.catalog}.{self.schema}.open_alex_paper_metadata"
+        )
         # Delta table name for table containing AI-parsed PDF content
         self.parsed_table = f"{self.catalog}.{self.schema}.ai_parsed_docs_table"
 
@@ -82,14 +84,14 @@ class DataProcessor:
         """
         # Neat way to check if metadata table exist in Unity Catalog
         # In Databricks, the spark.catalog is backed by the Unity Catalog
-        if self.spark.catalog.tableExists(self.papers_table):
+        if self.spark.catalog.tableExists(self.paper_metadata_table):
             # Fetch all rows from the table to the driver as a Python list of row objects
             # But since this is a single aggregated value, the output should be
             # [Row(max(processed)='202503181045')]
             result = self.spark.sql(
                 f"""
                                     SELECT max(processed)
-                                    FROM {self.papers_table}
+                                    FROM {self.paper_metadata_table}
                                     """
             ).collect()
 
@@ -136,7 +138,7 @@ class DataProcessor:
     ) -> list[dict] | None:
         """
         Download papers from OpenAlex API and extract + persist metadata
-        in the open_alex_papers table.
+        in the open_alex_paper_metadata table.
 
         Returns:
           List of metadata dicts for papers successfully downloaded in this run,
@@ -184,7 +186,11 @@ class DataProcessor:
                 continue
 
             try:
-                response = requests.get(pdf_url, timeout=30)
+                response = requests.get(
+                    pdf_url,
+                    timeout=30,
+                    headers={"User-Agent": "Mozilla/5.0 (compatible; research-bot/1.0)"},
+                )
                 response.raise_for_status()
                 content_type = response.headers.get("Content-Type", "")
                 if "application/pdf" not in content_type:
@@ -269,7 +275,9 @@ class DataProcessor:
         )
 
         # Create Delta table if it doesn't exist, do nothing if table already exists
-        metadata_df.write.format("delta").mode("ignore").saveAsTable(self.papers_table)
+        metadata_df.write.format("delta").mode("ignore").saveAsTable(
+            self.paper_metadata_table
+        )
 
         # Merge (upsert) to avoid duplicates:
         # Insert to table if the record does not exist
@@ -281,7 +289,7 @@ class DataProcessor:
 
         self.spark.sql(
             f"""
-        MERGE INTO {self.papers_table} target
+        MERGE INTO {self.paper_metadata_table} target
         USING new_papers source
         ON target.open_alex_id = source.open_alex_id
         WHEN NOT MATCHED THEN INSERT(
@@ -305,7 +313,9 @@ class DataProcessor:
             )
             """
         )
-        logger.info(f"Merged {len(records)} paper records into {self.papers_table}")
+        logger.info(
+            f"Merged {len(records)} paper records into {self.paper_metadata_table}"
+        )
         return records
 
     def parse_pdf_with_ai(self) -> None:
@@ -447,8 +457,8 @@ class DataProcessor:
         extract_paper_id_udf = udf(self._extract_paper_id, StringType())
         clean_chunk_udf = udf(self._clean_chunk, StringType())
 
-        # Read metadata table (open_alex_papers)
-        metadata_df = self.spark.table(self.papers_table).select(
+        # Read metadata table (open_alex_paper_metadata)
+        metadata_df = self.spark.table(self.paper_metadata_table).select(
             col("open_alex_id"),
             col("title"),
             col("summary"),
