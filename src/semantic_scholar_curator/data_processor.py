@@ -458,3 +458,21 @@ class DataProcessor:
             logger.info(
                 f"Change Data Feed enabled for {semantic_scholar_processed_chunks_table}"
             )
+
+    def process_and_save(self) -> None:
+        """Complete workflow: download papers, parse PDFs, and process chunks"""
+        # Step 1: Download papers and create and store metadata
+        records = self.download_and_store_papers()
+
+        # Only continue if we have downloaded new papers
+        if records is None:
+            logger.info("No new papers to process. Exiting.")
+            return
+
+        # Step 2: Parse PDFs with ai_parse_document()
+        self.parse_pdf_with_ai()
+        logger.info("Parsed documents with AI.")
+
+        # Step 3: Process chunks
+        self.process_chunks()
+        logger.info("Processing chunks completed!")
