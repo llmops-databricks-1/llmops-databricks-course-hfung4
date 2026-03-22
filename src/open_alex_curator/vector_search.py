@@ -120,3 +120,12 @@ class VectorSearchManager:
             # Retry get_index to return the already-existing index.
             logger.info(f"✓ Vector search index exists: {self.index_name}")
             return self.client.get_index(index_name=self.index_name)
+
+    def sync_index(self) -> None:
+        """Sync the vector search index with the source table."""
+        # Get or create index
+        index = self.create_or_get_index()
+        logger.info(f"Syncing vector search index: {self.index_name}")
+        # Sync the vector search index
+        index.sync()
+        logger.info("✓ Index sync triggered")
