@@ -12,13 +12,13 @@ Steps:
     2. Fetch paper metadata (title, authors, abstract, publication date, PDF URL, etc.)
        from the OpenAlex API using a configurable search query.
     3. Create a Spark DataFrame with a defined schema and write it to a Delta table
-       in Unity Catalog ({catalog}.{schema}.open_alex_papers).
+       in Unity Catalog ({catalog}.{schema}.open_alex_paper_metadata).
     4. Verify the ingested data by printing the schema, record count, and sample rows.
     5. Compute data statistics: paper counts by primary category and most recently
        published papers.
 
 Output:
-    Delta table: {catalog}.{schema}.open_alex_papers
+    Delta table: {catalog}.{schema}.open_alex_paper_metadata
 """
 
 import random
@@ -50,7 +50,7 @@ cfg.project  # noqa: B018
 
 CATALOG = cfg.project.catalog
 SCHEMA = cfg.project.schema
-TABLE_NAME = "open_alex_papers"
+TABLE_NAME = "open_alex_paper_metadata"
 
 # Create schema if it doesn't exist
 spark.sql(f"CREATE SCHEMA IF NOT EXISTS {CATALOG}.{SCHEMA}")
