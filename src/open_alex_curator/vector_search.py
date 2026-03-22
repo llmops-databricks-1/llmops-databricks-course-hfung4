@@ -1,6 +1,7 @@
 """Vector search management for OpenAlex papers"""
 
 from databricks.vector_search.client import VectorSearchClient
+from databricks.vector_search.index import VectorSearchIndex
 from loguru import logger
 
 from open_alex_curator.config import Config
@@ -71,3 +72,51 @@ class VectorSearchManager:
         else:
             # Endpoint already exists — nothing to do
             logger.info(f"✓ Vector search endpoint already exist: {self.endpoint_name}")
+
+    def create_or_get_index(self) -> VectorSearchIndex:
+        """Create or get vector search index.
+
+        Returns:
+            Vector search index object
+        """
+        # Ensure the vector search endpoint is running before creating an index on it
+        self.create_endpoint_if_not_exists()
+
+        # Source table containing cleaned chunk text produced by process_chunks().
+        # The index embeds the "text" column and stays in sync with this Delta table.
+        source_table = f"{self.catalog}.{self.schema}.open_alex_chunks_table"
+
+        # Try to fetch an existing index first to keep this method idempotent —
+        # safe to call on every pipeline run without recreating the index each time.
+        try:
+            index = self.client.get_index(index_name=self.index_name)
+            logger.info(f"✓ Vector search index exists: {self.index_name}")
+            return index
+        except Exception:
+            # get_index raises if the index doesn't exist yet; fall through to create it
+            logger.info(f"Index {self.index_name} not found, it will now be created...")
+
+        # Create a Delta Sync index backed by the source table.
+        # pipeline_type="TRIGGERED" means embeddings are synced on demand, not streaming.
+        # primary_key="id" uniquely identifies each chunk row.
+        # embedding_source_column="text" is the column whose content gets embedded.
+        try:
+            index = self.client.create_delta_sync_index(
+                endpoint_name=self.endpoint_name,
+                source_table_name=source_table,
+                index_name=self.index_name,
+                pipeline_type="TRIGGERED",
+                primary_key="id",
+                embedding_source_column="text",
+                embedding_model_endpoint_name=self.embedding_model,
+                usage_policy_id=self.usage_policy_id,
+            )
+            logger.info(f"✓ Vector search index created: {self.index_name}")
+            return index
+        except Exception as e:
+            if "RESOURCE_ALREADY_EXISTS" not in str(e):
+                raise
+            # Race condition: index was created between get_index and create calls.
+            # Retry get_index to return the already-existing index.
+            logger.info(f"✓ Vector search index exists: {self.index_name}")
+            return self.client.get_index(index_name=self.index_name)
