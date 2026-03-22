@@ -17,6 +17,9 @@ variables:
   schedule_pause_status:
     description: schedule pause status
     default: PAUSED
+  env:
+    description: environment
+    default: dev # Environment name (dev, staging, prod)
 
 include:
   - resources/*.yml

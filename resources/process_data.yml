@@ -1,0 +1,25 @@
+resources:
+  jobs:
+    data-pipeline:
+      name: semantic-scholar-data-pipeline
+      schedule:
+        quartz_cron_expression: "0 0 6 * * ?"
+        timezone_id: "America/New_York"
+        pause_status: ${var.schedule_pause_status}
+      tags:
+        project_name: "semantic-scholar-curator"
+      environments:
+        - environment_key: default
+          spec:
+            environment_version: "4"
+            dependencies:
+              - ../dist/*.whl
+
+      tasks:
+        - task_key: preprocessing
+          environment_key: default
+          spark_python_task:
+            python_file: scripts/1.process_data.py
+            parameters:
+            - "--env"
+            - "${var.env}"  # Environment variable (dev/staging/prod)
