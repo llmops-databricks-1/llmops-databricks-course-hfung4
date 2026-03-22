@@ -23,8 +23,13 @@ from loguru import logger
 from pyspark.sql import SparkSession
 from pyspark.sql import types as T
 from pyspark.sql.functions import (
+    col,
+    concat_ws,
     current_timestamp,
+    explode,
+    udf,
 )
+from pyspark.sql.types import ArrayType, StringType, StructField, StructType
 from semanticscholar import SemanticScholar
 
 from semantic_scholar_curator.config import Config
@@ -349,3 +354,97 @@ class DataProcessor:
         cleaned_text = re.sub(r"\s+", " ", cleaned_text)
 
         return cleaned_text.strip()
+
+    def process_chunks(self) -> None:
+        """Process parsed documents: extract chunks and paper id, and clean chunks
+        Reads from ai_parsed_docs table (containing the "raw chunks" json-like strings)
+        and writes to semantic_scholar_chunks table
+        """
+        logger.info(
+            f"Processing parsed documents from "
+            f"{self.parsed_table} for end date {self.end}"
+        )
+
+        # Read the ai_parsed_docs table as a Spark Dataframe
+        # Filter the newest records
+        df = self.spark.table(self.parsed_table).where(f"processed = {self.end}")
+
+        # Define schema for the extracted chunks
+        # When we extract the chunks from the json-like strings,
+        # the _extract_chunks() method returns a list of tuples: (chunk_id, content)
+        chunk_schema = ArrayType(
+            StructType(
+                [
+                    StructField("chunk_id", StringType(), True),
+                    StructField("content", StringType(), True),
+                ]
+            )
+        )
+
+        # Define Spark UDFs — custom Python functions applied across worker nodes.
+        # Similar to col() or concat_ws() but user-defined and slower to execute.
+        extract_chunks_udf = udf(self._extract_chunks, chunk_schema)
+        extract_paper_id_udf = udf(self._extract_paper_id, StringType())
+        clean_chunk_udf = udf(self._clean_chunk, StringType())
+
+        # Read metadata table (semantic_scholar_papers)
+        metadata_df = self.spark.table(self.papers_table).select(
+            col("semantic_scholar_id"),
+            col("title"),
+            col("summary"),
+            # Combine the authors array column into a single string separated by comma
+            concat_ws(", ", col("authors")).alias("authors"),
+            # published is stored as YYYYMMDDHHMM integer (e.g. 202503181045).
+            # Extract date parts using division and modulo arithmetic:
+            #   year  = 202503181045 / 100000000 → 2025
+            #   month = 202503181045 % 100000000 / 1000000 → 3
+            #   day   = 202503181045 % 1000000   / 10000   → 18
+            (col("published") / 100000000).cast("int").alias("year"),
+            ((col("published") % 100000000) / 1000000).cast("int").alias("month"),
+            ((col("published") % 1000000) / 10000).cast("int").alias("day"),
+        )
+
+        # Process the chunks data and create the transformed dataframe from parsed_table
+        chunks_df = (
+            # Extract paper id from the file path
+            df.withColumn("semantic_scholar_id", extract_paper_id_udf(col("path")))
+            # Extract chunks from json-like strings in parsed_table
+            .withColumn("chunks", extract_chunks_udf(col("parsed_content")))
+            # Explode the chunks so each chunk is a row
+            .withColumn("chunk", explode(col("chunks")))
+            .select(
+                col("semantic_scholar_id"),
+                col("chunk.chunk_id").alias("chunk_id"),
+                # Clean the chunks
+                clean_chunk_udf(col("chunk.content")).alias("text"),
+                # Concat semantic_scholar_id with chunk_id as primary key
+                concat_ws("_", col("semantic_scholar_id"), col("chunk.chunk_id")).alias(
+                    "id"
+                ),
+            )
+            # Join processed chunks to metadata_df
+            .join(metadata_df, "semantic_scholar_id", "left")
+        )
+
+        # Write the combined chunks and metadata df to a processed chunks table
+        semantic_scholar_processed_chunks_table = (
+            f"{self.catalog}.{self.schema}.semantic_scholar_chunks_table"
+        )
+        chunks_df.write.mode("append").saveAsTable(
+            semantic_scholar_processed_chunks_table
+        )
+        logger.info(
+            f"Processed and saved chunks to {semantic_scholar_processed_chunks_table}"
+        )
+
+        # Enable Change Data Feed (need to use changed records in processed chunk table
+        # to update Vector Index)
+        self.spark.sql(
+            f"""
+            ALTER TABLE {semantic_scholar_processed_chunks_table}
+            SET TBLPROPERTIES (delta.enableChangeDataFeed = true)
+            """
+        )
+        logger.info(
+            f"Change Data Feed enabled for {semantic_scholar_processed_chunks_table}"
+        )
