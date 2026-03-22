@@ -2061,6 +2061,19 @@ wheels = [
 ]
 
 [[package]]
+name = "pyalex"
+version = "0.21"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "requests" },
+    { name = "urllib3" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/c7/8a/5e270c3d6021a873667be7469fb95b00e0584593d57b7773ef0db6841cef/pyalex-0.21.tar.gz", hash = "sha256:39f470885187e0e411798d34163453361a3834c4dae53f0a18f272475b749741", size = 52593, upload-time = "2026-02-23T14:11:13.421Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c2/b6/714246176f5ad319dc1d06607a093570bc3d2c37de6d5583e106762883a5/pyalex-0.21-py3-none-any.whl", hash = "sha256:988c37eb31ee3d23176b431d37f7e18c37817317d976237abcc6f3c02f92396f", size = 15761, upload-time = "2026-02-23T14:11:12.523Z" },
+]
+
+[[package]]
 name = "pyarrow"
 version = "22.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2481,11 +2494,11 @@ dependencies = [
     { name = "pandas" },
     { name = "psycopg", extra = ["binary"] },
     { name = "psycopg-pool" },
+    { name = "pyalex" },
     { name = "pyarrow" },
     { name = "pydantic" },
     { name = "python-dotenv" },
     { name = "requests" },
-    { name = "semanticscholar" },
 ]
 
 [package.optional-dependencies]
@@ -2525,28 +2538,14 @@ requires-dist = [
     { name = "psycopg", specifier = "==3.3.2" },
     { name = "psycopg", extras = ["binary"], specifier = "==3.3.2" },
     { name = "psycopg-pool", specifier = "==3.3.0" },
+    { name = "pyalex", specifier = "==0.21" },
     { name = "pyarrow", specifier = "==22.0.0" },
     { name = "pydantic", specifier = "==2.11.7" },
     { name = "pytest", marker = "extra == 'ci'", specifier = ">=8.3.4,<9" },
     { name = "python-dotenv", specifier = "==1.1.1" },
     { name = "requests", specifier = "==2.32.5" },
-    { name = "semanticscholar", specifier = "==0.11.0" },
 ]
 provides-extras = ["dev", "ci"]
-
-[[package]]
-name = "semanticscholar"
-version = "0.11.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "httpx" },
-    { name = "nest-asyncio" },
-    { name = "tenacity" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/8a/5c/18302aad8f094b3e4b8bb79ee82dd0fafceee7811f9844c41f393f8a0e5f/semanticscholar-0.11.0.tar.gz", hash = "sha256:91e1233aedbf8e290daf8556fc7a3a6a6db78fe833adee88fd99ddb0a07a0c17", size = 28283, upload-time = "2025-09-14T01:14:51.832Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/7e/af/0627cf6bb64054d03a1fe8e9b0e659b496794000c30ba4fb921ca8aef20a/semanticscholar-0.11.0-py3-none-any.whl", hash = "sha256:824b7c3d11237ec829a211480ed1ed05f4ee9dfdf03e226b04c3d2051ea19b6e", size = 26048, upload-time = "2025-09-14T01:14:50.575Z" },
-]
 
 [[package]]
 name = "setuptools"

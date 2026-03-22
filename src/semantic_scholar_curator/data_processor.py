@@ -1,5 +1,5 @@
 """
-semantic_scholar API
+OpenAlex API
    ↓ (download_and_store_papers in Databricks Volume)
 PDFs in Volume + semantic_scholar_papers table (contains metadata)
    ↓ (parse_pdfs_with_ai)
@@ -11,16 +11,15 @@ semantic_scholar_chunks_table (clean text for each chunk merged with metadata)
 Vector Search Index (embeddings)
 """
 
-import itertools
 import json
 import os
 import re
-import time
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import requests
 from loguru import logger
+from pyalex import Works
 from pyspark.sql import SparkSession
 from pyspark.sql import types as T
 from pyspark.sql.functions import (
@@ -31,7 +30,6 @@ from pyspark.sql.functions import (
     udf,
 )
 from pyspark.sql.types import ArrayType, StringType, StructField, StructType
-from semanticscholar import SemanticScholar
 
 from semantic_scholar_curator.config import Config
 
@@ -108,14 +106,37 @@ class DataProcessor:
             ).strftime("%Y%m%d%H%M")
         return start
 
+    @staticmethod
+    def _reconstruct_abstract(inverted_index: dict | None) -> str | None:
+        """Reconstruct abstract text from OpenAlex inverted index format.
+
+        OpenAlex stores abstracts as an inverted index: {word: [positions]}.
+        This method reverses it back into a readable string.
+
+        Args:
+            inverted_index: dict mapping words to their position list, or None.
+
+        Returns:
+            Reconstructed abstract string, or None if not available.
+
+        Example:
+            >>> _reconstruct_abstract({"Hello": [0], "world": [1]})
+            'Hello world'
+        """
+        if not inverted_index:
+            return None
+        word_positions = [
+            (pos, word) for word, positions in inverted_index.items() for pos in positions
+        ]
+        word_positions.sort()
+        return " ".join(word for _, word in word_positions)
+
     def download_and_store_papers(
         self,
     ) -> list[dict] | None:
         """
-        Download papers from Semantic Scholar API and extract + persist metadata
+        Download papers from OpenAlex API and extract + persist metadata
         in the semantic_scholar_papers table.
-        NOTE: this is done already in the semantic_scholar_data_ingestion.py notebook
-        but we will integrate the same code in the DataProcessor class.
 
         Returns:
           List of metadata dicts for papers successfully downloaded in this run,
@@ -124,40 +145,43 @@ class DataProcessor:
         # Start of the time range for paper downloads
         start = self._get_range_start()
 
-        # Convert YYYYMMDDHHMM timestamps to YYYY-MM-DD for SemanticScholar API
+        # Convert YYYYMMDDHHMM timestamps to YYYY-MM-DD for OpenAlex API
         start_date = datetime.strptime(start, "%Y%m%d%H%M").strftime("%Y-%m-%d")
         end_date = datetime.strptime(self.end, "%Y%m%d%H%M").strftime("%Y-%m-%d")
 
-        # Search for papers with the semantic scholar API
-        client = SemanticScholar()
-        papers = client.search_paper(
-            self.cfg.project.query,  # query defined in project_config.yml
-            fields=[
-                "paperId",
-                "title",
-                "authors",
-                "abstract",
-                "openAccessPdf",
-                "publicationDate",
-            ],
-            publication_date_or_year=f"{start_date}:{end_date}",
-            # page size — the library still paginates beyond this
-            limit=self.cfg.project.max_results,
+        # Fetch open-access papers from OpenAlex in a single API call.
+        # is_oa=True filters to papers that have a downloadable PDF.
+        # per_page=max_results caps the result count (max 100 per OpenAlex docs).
+        works = (
+            Works()
+            .search(self.cfg.project.query)
+            .filter(
+                from_publication_date=start_date,
+                to_publication_date=end_date,
+                is_oa=True,
+            )
+            # Tells openAlex the max number of papers to return in a API call
+            # OpenAlex allows up to 200 papers per call
+            .get(per_page=self.cfg.project.max_results)
+        )
+
+        logger.info(
+            f"OpenAlex returned {len(works)} works for date range {start_date}:{end_date}"
         )
 
         # Download papers AND collect metadata
         records = []
+        skipped_no_pdf = 0
 
-        # islice stops asking the iterator for new items after max_results,
-        # so the library never calls _get_next_page() and no extra API call is made.
-        for paper in itertools.islice(papers, self.cfg.project.max_results):
-            time.sleep(3)
-            # Skip papers that are not open access (no downloadable PDF)
-            if not paper.openAccessPdf:
+        for work in works:
+            # OpenAlex ID is a URL e.g. "https://openalex.org/W123456" — strip prefix
+            paper_id = work["id"].replace("https://openalex.org/", "")
+            pdf_url = (work.get("open_access") or {}).get("oa_url")
+
+            if not pdf_url:
+                skipped_no_pdf += 1
                 continue
-            paper_id = paper.paperId
-            # Download paper to Volume with Request package
-            pdf_url = paper.openAccessPdf["url"]
+
             try:
                 response = requests.get(
                     pdf_url,
@@ -169,21 +193,45 @@ class DataProcessor:
                 with open(f"{self.pdf_dir}/{paper_id}.pdf", "wb") as f:
                     for chunk in response.iter_content(chunk_size=8192):
                         f.write(chunk)
-                # Collect metadata
+
+                # Extract author names
+                authors = [
+                    a["author"]["display_name"]
+                    for a in work.get("authorships", [])
+                    if (a.get("author") or {}).get("display_name")
+                ]
+
+                # publication_date is "YYYY-MM-DD"; convert to YYYYMMDDHHMM int
+                pub_date_str = work.get("publication_date") or ""
+                published = (
+                    int(
+                        datetime.strptime(pub_date_str, "%Y-%m-%d").strftime("%Y%m%d%H%M")
+                    )
+                    if pub_date_str
+                    else None
+                )
+
                 records.append(
                     {
                         "semantic_scholar_id": paper_id,
-                        "title": paper.title,
-                        "authors": [author.name for author in paper.authors],
-                        "summary": paper.abstract,
+                        "title": work.get("title"),
+                        "authors": authors,
+                        "summary": self._reconstruct_abstract(
+                            work.get("abstract_inverted_index")
+                        ),
                         "pdf_url": pdf_url,
-                        "published": int(paper.publicationDate.strftime("%Y%m%d%H%M")),
+                        "published": published,
                         "processed": int(self.end),
                         "volume_path": f"{self.pdf_dir}/{paper_id}.pdf",
                     }
                 )
             except Exception:
                 logger.warning(f"Paper {paper_id} was not successfully processed.")
+
+        logger.info(
+            f"Skipped {skipped_no_pdf} works with no direct PDF URL. "
+            f"Successfully downloaded {len(records)} papers."
+        )
 
         # Only upsert records to metadata table if we have new records
         if len(records) == 0:

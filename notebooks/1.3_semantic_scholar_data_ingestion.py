@@ -1,16 +1,16 @@
 # Databricks notebook source
 """
-Notebook 1.3 — Semantic Scholar Data Ingestion
+Notebook 1.3 — OpenAlex Data Ingestion
 
 Overview:
-    This notebook fetches research paper metadata from the Semantic Scholar API
+    This notebook fetches research paper metadata from the OpenAlex API
     and stores it as a Delta table in Unity Catalog for downstream processing.
 
 Steps:
     1. Load environment configuration (catalog, schema, endpoints)
        from project_config.yml.
     2. Fetch paper metadata (title, authors, abstract, publication date, PDF URL, etc.)
-       from the Semantic Scholar API using a configurable search query.
+       from the OpenAlex API using a configurable search query.
     3. Create a Spark DataFrame with a defined schema and write it to a Delta table
        in Unity Catalog ({catalog}.{schema}.semantic_scholar_papers).
     4. Verify the ingested data by printing the schema, record count, and sample rows.
@@ -25,10 +25,10 @@ import random
 from datetime import datetime
 
 from loguru import logger
+from pyalex import Works
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, explode
 from pyspark.sql.types import ArrayType, LongType, StringType, StructField, StructType
-from semanticscholar import SemanticScholar
 
 from semantic_scholar_curator.config import get_env, load_config
 
@@ -59,100 +59,91 @@ logger.info(f"Schema {CATALOG}.{SCHEMA} is ready.")
 # COMMAND ----------
 
 
-def fetch_semantic_scholar_papers(
+def fetch_openalex_papers(
     query: str = "artificial intelligence OR machine learning",
     max_results: int = 100,
-    batch_size: int = 100,
 ) -> list[dict]:
-    """Fetch Semantic Scholar paper metadata from the Semantic Scholar API.
+    """Fetch paper metadata from the OpenAlex API.
 
     Args:
         query (str, optional): search query.
-        max_results (int, optional): maximum number of papers to fetch.
-        batch_size (int, optional): page size per API request.
+        max_results (int, optional): maximum number of papers to fetch (max 100).
 
     Returns:
         List of paper metadata dictionaries
 
     Example:
-        >>> papers = fetch_semantic_scholar_papers(
+        >>> papers = fetch_openalex_papers(
         ...     query="large language models",
         ...     max_results=50,
-        ...     batch_size=25,
         ... )
         >>> papers[0]["title"]
         'Attention Is All You Need'
         >>> papers[0]["authors"]
         ['Ashish Vaswani', 'Noam Shazeer']
     """
-    # Initialise the Semantic Scholar API client
-    client = SemanticScholar()
-
-    # Clamp batch_size so we never request more per page than the total we want
-    batch_size = min(batch_size, max_results)
-
-    # search_paper returns a lazy paginated iterator; batch_size controls page size
-    results = client.search_paper(
-        query=query,
-        limit=batch_size,
-        fields=[
-            "paperId",
-            "title",
-            "authors",
-            "abstract",
-            "publicationDate",
-            "year",
-            "fieldsOfStudy",
-            "openAccessPdf",
-        ],
-    )
+    # .get() returns a plain Python list
+    works = Works().search(query).get(per_page=max_results)
 
     papers = []
 
-    for count, result in enumerate(results):
-        # Stop once we've collected the requested number of papers
-        if count >= max_results:
-            break
+    for work in works:
+        # OpenAlex ID is a URL e.g. "https://openalex.org/W123456" — strip prefix
+        paper_id = work["id"].replace("https://openalex.org/", "")
 
-        publication_date = getattr(result, "publicationDate", None)
-        year = getattr(result, "year", None)
+        # Abstract is stored as an inverted index {word: [positions]} — reconstruct it
+        inverted_index = work.get("abstract_inverted_index") or {}
+        if inverted_index:
+            word_positions = [
+                (pos, word)
+                for word, positions in inverted_index.items()
+                for pos in positions
+            ]
+            word_positions.sort()
+            abstract = " ".join(word for _, word in word_positions)
+        else:
+            abstract = None
 
-        # Normalise date to a compact integer (YYYYMMDDHHmm) for sorting/filtering.
-        # publicationDate is a datetime when present; fall back to year-only if not.
-        if publication_date:
+        # Extract author display names
+        authors = [
+            a["author"]["display_name"]
+            for a in work.get("authorships", [])
+            if (a.get("author") or {}).get("display_name")
+        ]
+
+        # publication_date is "YYYY-MM-DD"; convert to YYYYMMDDHHMM int
+        pub_date_str = work.get("publication_date") or ""
+        if pub_date_str:
             try:
-                published = int(publication_date.strftime("%Y%m%d%H%M"))
+                published = int(
+                    datetime.strptime(pub_date_str, "%Y-%m-%d").strftime("%Y%m%d%H%M")
+                )
             except Exception:
                 published = None
         else:
-            # No full date — use Jan 1 00:00 of the publication year
-            published = int(f"{year}01010000") if year else None
+            published = None
 
-        # openAccessPdf is a dict with a "url" key, or None if no open-access PDF exists
-        open_access_pdf = getattr(result, "openAccessPdf", None)
-        pdf_url = open_access_pdf.get("url") if open_access_pdf else None
+        # PDF URL from open_access metadata
+        pdf_url = (work.get("open_access") or {}).get("oa_url")
 
-        # Extract author names, skipping entries where the name is missing
-        authors = []
-        if getattr(result, "authors", None):
-            authors = [
-                author.name
-                for author in result.authors
-                if getattr(author, "name", None)
-            ]
-
-        # Default to empty list so joins and index lookups below are safe
-        fields_of_study = getattr(result, "fieldsOfStudy", None) or []
+        # Topics map to what Semantic Scholar called "fieldsOfStudy"
+        topics = [t["display_name"] for t in work.get("topics", [])]
+        primary_topic = work.get("primary_topic")
+        primary_category = (
+            (primary_topic.get("field") or {}).get("display_name")
+            if primary_topic
+            else None
+        )
 
         paper = {
-            "paper_id": getattr(result, "paperId", None),
-            "title": getattr(result, "title", None),
+            "paper_id": paper_id,
+            "title": work.get("title"),
             "authors": authors,
-            "summary": getattr(result, "abstract", None),
+            "summary": abstract,
             "published": published,
-            "categories": ", ".join(fields_of_study),  # comma-separated string
+            "categories": ", ".join(topics),
             "pdf_url": pdf_url,
-            "primary_category": fields_of_study[0] if fields_of_study else None,
+            "primary_category": primary_category,
             "ingestion_timestamp": datetime.now().isoformat(),
             "processed": None,  # populated downstream after processing
             "volume_path": None,  # populated downstream after writing to volume
@@ -166,13 +157,13 @@ def fetch_semantic_scholar_papers(
 # COMMAND ----------
 # Fetch papers
 
-logger.info("Fetching Semantic Scholar papers...")
+logger.info("Fetching OpenAlex papers...")
 
 query = (
     "behavioral science financial decision making "
     "insurance investment advisory consumer purchase behavior"
 )
-papers = fetch_semantic_scholar_papers(query=query, max_results=50)
+papers = fetch_openalex_papers(query=query, max_results=50)
 
 logger.info(f"Fetched {len(papers)} papers")
 

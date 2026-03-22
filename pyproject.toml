@@ -20,7 +20,7 @@ dependencies = [
     "mlflow==3.8.1",
     "nest-asyncio==1.6.0",
     "requests==2.32.5",
-    "semanticscholar==0.11.0",
+    "pyalex==0.21",
     "databricks-agents==1.8.2",
     "psycopg==3.3.2",
     "psycopg-pool==3.3.0",

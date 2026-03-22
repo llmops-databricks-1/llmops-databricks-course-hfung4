@@ -15,6 +15,7 @@ resources:
       tasks:
         - task_key: data_ingestion
           environment_key: default
+          max_retries: 0
           notebook_task:
             notebook_path: ../notebooks/1.3_semantic_scholar_data_ingestion.py
             base_parameters:
