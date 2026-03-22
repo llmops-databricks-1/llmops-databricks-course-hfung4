@@ -71,10 +71,10 @@ tasks:
     cmds:
       - databricks bundle validate && databricks bundle deploy --target dev
 
-  run-pipeline-dev:
+  run-data_processing-dev:
     desc: Run the Databricks pipeline in the dev environment
     cmds:
-      - databricks bundle run deployment --target dev --no-wait
+      - databricks bundle run data-pipeline --target dev --no-wait
 
   help:
     desc: Print all tasks defined in the Taskfile
