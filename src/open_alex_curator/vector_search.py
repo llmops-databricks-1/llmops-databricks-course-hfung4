@@ -129,3 +129,41 @@ class VectorSearchManager:
         # Sync the vector search index
         index.sync()
         logger.info("✓ Index sync triggered")
+
+    def search(
+        self,
+        query: str,
+        num_results: int = 5,
+        filters: dict | None = None,
+    ) -> dict:
+        """Search the vector index.
+
+        Args:
+            query: Search query text
+            num_results: Number of results to return
+            filters: Optional filters to apply
+
+        Returns:
+            Search results dictionary
+        """
+        # Get index
+        index = self.client.get_index(index_name=self.index_name)
+        # Query against the index
+        results = index.similarity_search(
+            query_text=query,
+            # columns to return along with each of the search result
+            columns=[
+                "id",
+                "text",
+                "open_alex_id",
+                "title",
+                "authors",
+                "summary",
+                "year",
+                "month",
+                "day",
+            ],
+            num_results=num_results,
+            filters=filters,
+        )
+        return results
