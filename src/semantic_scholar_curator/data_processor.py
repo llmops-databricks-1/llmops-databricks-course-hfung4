@@ -1,12 +1,12 @@
 """
 OpenAlex API
    ↓ (download_and_store_papers in Databricks Volume)
-PDFs in Volume + semantic_scholar_papers table (contains metadata)
+PDFs in Volume + open_alex_papers table (contains metadata)
    ↓ (parse_pdfs_with_ai)
 ai_parsed_docs_table (the parsed document is stored in
 a JSON-like string in the "parse_content" column of the table )
    ↓ (process_chunks)
-semantic_scholar_chunks_table (clean text for each chunk merged with metadata)
+open_alex_chunks_table (clean text for each chunk merged with metadata)
    ↓ (VectorSearchManager - separate class) (2.4 notebook)
 Vector Search Index (embeddings)
 """
@@ -19,6 +19,7 @@ from zoneinfo import ZoneInfo
 
 import requests
 from loguru import logger
+from open_alex_curator.config import Config
 from pyalex import Works
 from pyspark.sql import SparkSession
 from pyspark.sql import types as T
@@ -31,13 +32,11 @@ from pyspark.sql.functions import (
 )
 from pyspark.sql.types import ArrayType, StringType, StructField, StructType
 
-from semantic_scholar_curator.config import Config
-
 
 class DataProcessor:
     """
      DataProcessor handles the complete workflow of:
-    - Downloading papers from semantic scholar
+    - Downloading papers from OpenAlex
     - Storing paper metadata
     - Parsing PDFs with ai_parse_document
     - Extracting and cleaning text chunks
@@ -66,13 +65,13 @@ class DataProcessor:
         # Create the PDF directory if it doesn't already exist
         os.makedirs(self.pdf_dir, exist_ok=True)
         # Delta table name for raw paper metadata
-        self.papers_table = f"{self.catalog}.{self.schema}.semantic_scholar_papers"
+        self.papers_table = f"{self.catalog}.{self.schema}.open_alex_papers"
         # Delta table name for table containing AI-parsed PDF content
         self.parsed_table = f"{self.catalog}.{self.schema}.ai_parsed_docs_table"
 
     def _get_range_start(self) -> str:
         """
-        Get the start time for the Semantic Scholar paper search range.
+        Get the start time for the OpenAlex paper search range.
 
         Uses max(processed) from the papers table if it exists (i.e. the timestamp of
         the most recent prior run), otherwise defaults to 3 days ago (first run).
@@ -136,7 +135,7 @@ class DataProcessor:
     ) -> list[dict] | None:
         """
         Download papers from OpenAlex API and extract + persist metadata
-        in the semantic_scholar_papers table.
+        in the open_alex_papers table.
 
         Returns:
           List of metadata dicts for papers successfully downloaded in this run,
@@ -213,7 +212,7 @@ class DataProcessor:
 
                 records.append(
                     {
-                        "semantic_scholar_id": paper_id,
+                        "open_alex_id": paper_id,
                         "title": work.get("title"),
                         "authors": authors,
                         "summary": self._reconstruct_abstract(
@@ -246,7 +245,7 @@ class DataProcessor:
         # Define schema of the metadata table
         schema = T.StructType(
             [
-                T.StructField("semantic_scholar_id", T.StringType(), False),
+                T.StructField("open_alex_id", T.StringType(), False),
                 T.StructField("title", T.StringType(), True),
                 T.StructField("authors", T.ArrayType(T.StringType()), True),
                 T.StructField("summary", T.StringType(), True),
@@ -267,7 +266,7 @@ class DataProcessor:
 
         # Merge (upsert) to avoid duplicates:
         # Insert to table if the record does not exist
-        # in terms of semantic_scholar_id.
+        # in terms of open_alex_id.
         # Skip duplicates already in the table
 
         # Create a temp view so it can be referenced in the MERGE SQL statement
@@ -277,9 +276,9 @@ class DataProcessor:
             f"""
         MERGE INTO {self.papers_table} target
         USING new_papers source
-        ON target.semantic_scholar_id = source.semantic_scholar_id
+        ON target.open_alex_id = source.open_alex_id
         WHEN NOT MATCHED THEN INSERT(
-            semantic_scholar_id,
+            open_alex_id,
             title,
             authors,
             summary,
@@ -288,7 +287,7 @@ class DataProcessor:
             processed,
             volume_path)
             VALUES (
-            source.semantic_scholar_id,
+            source.open_alex_id,
             source.title,
             source.authors,
             source.summary,
@@ -412,7 +411,7 @@ class DataProcessor:
     def process_chunks(self) -> None:
         """Process parsed documents: extract chunks and paper id, and clean chunks
         Reads from ai_parsed_docs table (containing the "raw chunks" json-like strings)
-        and writes to semantic_scholar_chunks table
+        and writes to open_alex_chunks table
         """
         logger.info(
             f"Processing parsed documents from "
@@ -441,9 +440,9 @@ class DataProcessor:
         extract_paper_id_udf = udf(self._extract_paper_id, StringType())
         clean_chunk_udf = udf(self._clean_chunk, StringType())
 
-        # Read metadata table (semantic_scholar_papers)
+        # Read metadata table (open_alex_papers)
         metadata_df = self.spark.table(self.papers_table).select(
-            col("semantic_scholar_id"),
+            col("open_alex_id"),
             col("title"),
             col("summary"),
             # Combine the authors array column into a single string separated by comma
@@ -461,56 +460,50 @@ class DataProcessor:
         # Process the chunks data and create the transformed dataframe from parsed_table
         chunks_df = (
             # Extract paper id from the file path
-            df.withColumn("semantic_scholar_id", extract_paper_id_udf(col("path")))
+            df.withColumn("open_alex_id", extract_paper_id_udf(col("path")))
             # Extract chunks from json-like strings in parsed_table
             # Result: array of {chunk_id, content} structs — one array per PDF
             .withColumn("chunks", extract_chunks_udf(col("parsed_content")))
             # Explode: turns one row per paper → many rows, one per text chunk
             .withColumn("chunk", explode(col("chunks")))
             .select(
-                col("semantic_scholar_id"),
+                col("open_alex_id"),
                 col("chunk.chunk_id").alias("chunk_id"),
                 # Normalize text: fix hyphenation, collapse whitespace
                 clean_chunk_udf(col("chunk.content")).alias("text"),
                 # Build primary key by combining paper id and chunk id
-                concat_ws("_", col("semantic_scholar_id"), col("chunk.chunk_id")).alias(
-                    "id"
-                ),
+                concat_ws("_", col("open_alex_id"), col("chunk.chunk_id")).alias("id"),
             )
             # Left join to enrich each chunk row with paper metadata
             # (title, authors, summary, year, month, day)
-            .join(metadata_df, "semantic_scholar_id", "left")
+            .join(metadata_df, "open_alex_id", "left")
         )
 
-        semantic_scholar_processed_chunks_table = (
-            f"{self.catalog}.{self.schema}.semantic_scholar_chunks_table"
+        open_alex_processed_chunks_table = (
+            f"{self.catalog}.{self.schema}.open_alex_chunks_table"
         )
 
         # Check before writing — once saveAsTable creates the table,
         # tableExists will return True and CDF would never be enabled
         is_first_run = not self.spark.catalog.tableExists(
-            semantic_scholar_processed_chunks_table
+            open_alex_processed_chunks_table
         )
 
         # Write the combined chunks and metadata df to a processed chunks table
-        chunks_df.write.mode("append").saveAsTable(
-            semantic_scholar_processed_chunks_table
-        )
-        logger.info(
-            f"Processed and saved chunks to {semantic_scholar_processed_chunks_table}"
-        )
+        chunks_df.write.mode("append").saveAsTable(open_alex_processed_chunks_table)
+        logger.info(f"Processed and saved chunks to {open_alex_processed_chunks_table}")
 
         # Enable Change Data Feed on first run only — allows the Vector Search index
         # to sync only new/changed chunks rather than reindexing everything
         if is_first_run:
             self.spark.sql(
                 f"""
-                ALTER TABLE {semantic_scholar_processed_chunks_table}
+                ALTER TABLE {open_alex_processed_chunks_table}
                 SET TBLPROPERTIES (delta.enableChangeDataFeed = true)
                 """
             )
             logger.info(
-                f"Change Data Feed enabled for {semantic_scholar_processed_chunks_table}"
+                f"Change Data Feed enabled for {open_alex_processed_chunks_table}"
             )
 
     def process_and_save(self) -> None:

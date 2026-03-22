@@ -77,7 +77,7 @@ MIN_PROVISIONED_THROUGHPUT = 0  # Must be 0 when scale_to_zero is enabled
 MAX_PROVISIONED_THROUGHPUT = 20  # Max capacity for auto-scaling
 
 catalog = "dev"
-schema = "semantic_scholar"
+schema = "open_alex"
 BUDGET_POLICY_ID = None  # e.g. "my-budget-policy-id"
 
 # COMMAND ----------

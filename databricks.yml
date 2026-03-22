@@ -1,5 +1,5 @@
 bundle:
-  name: semantic-scholar-curator
+  name: open-alex-curator
 
 artifacts:
   default:

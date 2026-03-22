@@ -5,7 +5,7 @@ version: "3"
 #dotenv: [.env]
 
 vars:
-  PACKAGE_IMPORT_NAME: semantic_scholar_curator
+  PACKAGE_IMPORT_NAME: open_alex_curator
   PYTHON_VERSION: 3.12
 
 tasks:

@@ -1,9 +1,9 @@
 """
-This script downloads, parses, and chunks papers from Semantic Scholar
+This script downloads, parses, and chunks papers from OpenAlex
 and syncs the vector search index.
 
 Pipeline steps:
-1. Download new PDFs from semantic scholar
+1. Download new PDFs from OpenAlex
 2. Parse PDFs with AI Parse Documents
 3. Extract and clean chunks
 4. Sync embedded chunks to vector search index
@@ -12,10 +12,9 @@ Pipeline steps:
 import argparse
 
 from loguru import logger
+from open_alex_curator.config import load_config
+from open_alex_curator.data_processor import DataProcessor
 from pyspark.sql import SparkSession
-
-from semantic_scholar_curator.config import load_config
-from semantic_scholar_curator.data_processor import DataProcessor
 
 spark = SparkSession.builder.getOrCreate()
 

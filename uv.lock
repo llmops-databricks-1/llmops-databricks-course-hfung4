@@ -1700,6 +1700,78 @@ wheels = [
 ]
 
 [[package]]
+name = "open-alex-curator"
+source = { editable = "." }
+dependencies = [
+    { name = "backoff" },
+    { name = "cffi" },
+    { name = "cloudpickle" },
+    { name = "databricks-agents" },
+    { name = "databricks-mcp" },
+    { name = "databricks-sdk" },
+    { name = "databricks-vectorsearch" },
+    { name = "loguru" },
+    { name = "mlflow" },
+    { name = "nest-asyncio" },
+    { name = "numpy" },
+    { name = "openai" },
+    { name = "pandas" },
+    { name = "psycopg", extra = ["binary"] },
+    { name = "psycopg-pool" },
+    { name = "pyalex" },
+    { name = "pyarrow" },
+    { name = "pydantic" },
+    { name = "python-dotenv" },
+    { name = "requests" },
+]
+
+[package.optional-dependencies]
+ci = [
+    { name = "pre-commit" },
+    { name = "pytest" },
+]
+dev = [
+    { name = "claudetracing" },
+    { name = "databricks-connect" },
+    { name = "ipykernel" },
+    { name = "pip" },
+    { name = "pre-commit" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "backoff", specifier = "==2.2.1" },
+    { name = "cffi", specifier = "==1.17.1" },
+    { name = "claudetracing", marker = "extra == 'dev'", specifier = ">=0.2.0,<1" },
+    { name = "cloudpickle", specifier = "==3.1.1" },
+    { name = "databricks-agents", specifier = "==1.8.2" },
+    { name = "databricks-connect", marker = "extra == 'dev'", specifier = ">=17.0,<18" },
+    { name = "databricks-mcp", specifier = "==0.4.0" },
+    { name = "databricks-sdk", specifier = "==0.85.0" },
+    { name = "databricks-vectorsearch", specifier = "==0.63" },
+    { name = "ipykernel", marker = "extra == 'dev'", specifier = ">=6.29.5,<7" },
+    { name = "loguru", specifier = "==0.7.3" },
+    { name = "mlflow", specifier = "==3.8.1" },
+    { name = "nest-asyncio", specifier = "==1.6.0" },
+    { name = "numpy", specifier = "==2.4.0" },
+    { name = "openai", specifier = "==2.8.0" },
+    { name = "pandas", specifier = "==2.3.0" },
+    { name = "pip", marker = "extra == 'dev'", specifier = ">=25.0.1,<26" },
+    { name = "pre-commit", marker = "extra == 'ci'", specifier = ">=4.1.0,<5" },
+    { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=4.1.0,<5" },
+    { name = "psycopg", specifier = "==3.3.2" },
+    { name = "psycopg", extras = ["binary"], specifier = "==3.3.2" },
+    { name = "psycopg-pool", specifier = "==3.3.0" },
+    { name = "pyalex", specifier = "==0.21" },
+    { name = "pyarrow", specifier = "==22.0.0" },
+    { name = "pydantic", specifier = "==2.11.7" },
+    { name = "pytest", marker = "extra == 'ci'", specifier = ">=8.3.4,<9" },
+    { name = "python-dotenv", specifier = "==1.1.1" },
+    { name = "requests", specifier = "==2.32.5" },
+]
+provides-extras = ["dev", "ci"]
+
+[[package]]
 name = "openai"
 version = "2.8.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2474,78 +2546,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/a2/84/dc08d77fbf3d87d3ee27f6a0c6dcce1de5829a64f2eae85a0ecc1f0daa73/scipy-1.17.1-cp312-cp312-win_amd64.whl", hash = "sha256:41b71f4a3a4cab9d366cd9065b288efc4d4f3c0b37a91a8e0947fb5bd7f31d87", size = 36549682, upload-time = "2026-02-23T00:19:07.67Z" },
     { url = "https://files.pythonhosted.org/packages/bc/98/fe9ae9ffb3b54b62559f52dedaebe204b408db8109a8c66fdd04869e6424/scipy-1.17.1-cp312-cp312-win_arm64.whl", hash = "sha256:f4115102802df98b2b0db3cce5cb9b92572633a1197c77b7553e5203f284a5b3", size = 24547340, upload-time = "2026-02-23T00:19:12.024Z" },
 ]
-
-[[package]]
-name = "semantic-scholar-curator"
-source = { editable = "." }
-dependencies = [
-    { name = "backoff" },
-    { name = "cffi" },
-    { name = "cloudpickle" },
-    { name = "databricks-agents" },
-    { name = "databricks-mcp" },
-    { name = "databricks-sdk" },
-    { name = "databricks-vectorsearch" },
-    { name = "loguru" },
-    { name = "mlflow" },
-    { name = "nest-asyncio" },
-    { name = "numpy" },
-    { name = "openai" },
-    { name = "pandas" },
-    { name = "psycopg", extra = ["binary"] },
-    { name = "psycopg-pool" },
-    { name = "pyalex" },
-    { name = "pyarrow" },
-    { name = "pydantic" },
-    { name = "python-dotenv" },
-    { name = "requests" },
-]
-
-[package.optional-dependencies]
-ci = [
-    { name = "pre-commit" },
-    { name = "pytest" },
-]
-dev = [
-    { name = "claudetracing" },
-    { name = "databricks-connect" },
-    { name = "ipykernel" },
-    { name = "pip" },
-    { name = "pre-commit" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "backoff", specifier = "==2.2.1" },
-    { name = "cffi", specifier = "==1.17.1" },
-    { name = "claudetracing", marker = "extra == 'dev'", specifier = ">=0.2.0,<1" },
-    { name = "cloudpickle", specifier = "==3.1.1" },
-    { name = "databricks-agents", specifier = "==1.8.2" },
-    { name = "databricks-connect", marker = "extra == 'dev'", specifier = ">=17.0,<18" },
-    { name = "databricks-mcp", specifier = "==0.4.0" },
-    { name = "databricks-sdk", specifier = "==0.85.0" },
-    { name = "databricks-vectorsearch", specifier = "==0.63" },
-    { name = "ipykernel", marker = "extra == 'dev'", specifier = ">=6.29.5,<7" },
-    { name = "loguru", specifier = "==0.7.3" },
-    { name = "mlflow", specifier = "==3.8.1" },
-    { name = "nest-asyncio", specifier = "==1.6.0" },
-    { name = "numpy", specifier = "==2.4.0" },
-    { name = "openai", specifier = "==2.8.0" },
-    { name = "pandas", specifier = "==2.3.0" },
-    { name = "pip", marker = "extra == 'dev'", specifier = ">=25.0.1,<26" },
-    { name = "pre-commit", marker = "extra == 'ci'", specifier = ">=4.1.0,<5" },
-    { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=4.1.0,<5" },
-    { name = "psycopg", specifier = "==3.3.2" },
-    { name = "psycopg", extras = ["binary"], specifier = "==3.3.2" },
-    { name = "psycopg-pool", specifier = "==3.3.0" },
-    { name = "pyalex", specifier = "==0.21" },
-    { name = "pyarrow", specifier = "==22.0.0" },
-    { name = "pydantic", specifier = "==2.11.7" },
-    { name = "pytest", marker = "extra == 'ci'", specifier = ">=8.3.4,<9" },
-    { name = "python-dotenv", specifier = "==1.1.1" },
-    { name = "requests", specifier = "==2.32.5" },
-]
-provides-extras = ["dev", "ci"]
 
 [[package]]
 name = "setuptools"

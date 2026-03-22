@@ -12,13 +12,13 @@ Steps:
     2. Fetch paper metadata (title, authors, abstract, publication date, PDF URL, etc.)
        from the OpenAlex API using a configurable search query.
     3. Create a Spark DataFrame with a defined schema and write it to a Delta table
-       in Unity Catalog ({catalog}.{schema}.semantic_scholar_papers).
+       in Unity Catalog ({catalog}.{schema}.open_alex_papers).
     4. Verify the ingested data by printing the schema, record count, and sample rows.
     5. Compute data statistics: paper counts by primary category and most recently
        published papers.
 
 Output:
-    Delta table: {catalog}.{schema}.semantic_scholar_papers
+    Delta table: {catalog}.{schema}.open_alex_papers
 """
 
 import random
@@ -30,7 +30,7 @@ from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, explode
 from pyspark.sql.types import ArrayType, LongType, StringType, StructField, StructType
 
-from semantic_scholar_curator.config import get_env, load_config
+from open_alex_curator.config import get_env, load_config
 
 # COMMAND ----------
 # Spark session
@@ -50,7 +50,7 @@ cfg.project  # noqa: B018
 
 CATALOG = cfg.project.catalog
 SCHEMA = cfg.project.schema
-TABLE_NAME = "semantic_scholar_papers"
+TABLE_NAME = "open_alex_papers"
 
 # Create schema if it doesn't exist
 spark.sql(f"CREATE SCHEMA IF NOT EXISTS {CATALOG}.{SCHEMA}")
@@ -126,7 +126,7 @@ def fetch_openalex_papers(
         # PDF URL from open_access metadata
         pdf_url = (work.get("open_access") or {}).get("oa_url")
 
-        # Topics map to what Semantic Scholar called "fieldsOfStudy"
+        # Topics/field of study
         topics = [t["display_name"] for t in work.get("topics", [])]
         primary_topic = work.get("primary_topic")
         primary_category = (

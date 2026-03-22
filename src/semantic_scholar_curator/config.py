@@ -1,4 +1,4 @@
-"""Configuration management for semantic scholar curator."""
+"""Configuration management for OpenAlex curator."""
 
 from pathlib import Path
 
@@ -21,9 +21,7 @@ class ProjectConfig(BaseModel):
     genie_space_id: str | None = Field(
         None, description="Genie space ID for MCP integration"
     )
-    query: str = Field(
-        ..., description="Search query for Semantic Scholar paper ingestion"
-    )
+    query: str = Field(..., description="Search query for OpenAlex paper ingestion")
     max_results: int = Field(
         100, description="Maximum number of papers to fetch per pipeline run"
     )

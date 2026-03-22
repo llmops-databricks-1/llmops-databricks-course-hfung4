@@ -1,13 +1,13 @@
 resources:
   jobs:
     data-pipeline:
-      name: semantic-scholar-data-pipeline
+      name: open-alex-data-pipeline
       schedule:
         quartz_cron_expression: "0 0 6 * * ?"
         timezone_id: "America/New_York"
         pause_status: ${var.schedule_pause_status}
       tags:
-        project_name: "semantic-scholar-curator"
+        project_name: "open-alex-curator"
       environments:
         - environment_key: default
           spec:

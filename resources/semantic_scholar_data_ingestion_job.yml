@@ -1,9 +1,9 @@
 resources:
   jobs:
-    semantic_scholar_data_ingestion_job:
-      name: semantic_scholar_data_ingestion
+    open_alex_data_ingestion_job:
+      name: open_alex_data_ingestion
       tags:
-        project_name: "semantic-scholar-curator"
+        project_name: "open-alex-curator"
 
       environments:
         - environment_key: default
@@ -17,7 +17,7 @@ resources:
           environment_key: default
           max_retries: 0
           notebook_task:
-            notebook_path: ../notebooks/1.3_semantic_scholar_data_ingestion.py
+            notebook_path: ../notebooks/1.3_open_alex_data_ingestion.py
             base_parameters:
               env: ${bundle.target}
               git_sha: "${var.git_sha}"
