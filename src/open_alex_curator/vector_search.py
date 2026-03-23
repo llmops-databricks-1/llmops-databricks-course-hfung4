@@ -1,5 +1,7 @@
 """Vector search management for OpenAlex papers"""
 
+import time
+
 from databricks.vector_search.client import VectorSearchClient
 from databricks.vector_search.index import VectorSearchIndex
 from loguru import logger
@@ -28,9 +30,9 @@ class VectorSearchManager:
         """
         self.config = config
         self.endpoint_name = endpoint_name or config.project.vector_search_endpoint
-        self.embedding_model = embedding_model or config.embedding_endpoint
-        self.catalog = config.catalog
-        self.schema = config.schema
+        self.embedding_model = embedding_model or config.project.embedding_endpoint
+        self.catalog = config.project.catalog
+        self.schema = config.project.schema
         # Optional — only required if the workspace enforces a usage policy on indexes
         self.usage_policy_id = usage_policy_id
 
@@ -38,6 +40,45 @@ class VectorSearchManager:
         self.client = VectorSearchClient()
         # Full Unity Catalog path: <catalog>.<schema>.<index_name>
         self.index_name = f"{self.catalog}.{self.schema}.open_alex_index"
+
+    def _wait_for_endpoint_online(self, poll_interval: int = 15) -> None:
+        """Poll until the vector search endpoint reaches ONLINE state.
+
+        Args:
+            poll_interval: Seconds to wait between status checks.
+        """
+        logger.info(
+            f"Waiting for vector search endpoint to be ONLINE: {self.endpoint_name}"
+        )
+        while True:
+            response = self.client.get_endpoint(self.endpoint_name)
+            # Response can be a dict or an SDK object
+            if isinstance(response, dict):
+                state = (response.get("endpoint_status") or {}).get("state")
+            else:
+                state = getattr(getattr(response, "endpoint_status", None), "state", None)
+            if state == "ONLINE":
+                logger.info(f"✓ Vector search endpoint is ready: {self.endpoint_name}")
+                return
+            logger.info(f"Endpoint state: {state} — retrying in {poll_interval}s...")
+            time.sleep(poll_interval)
+
+    def _wait_for_index_ready(self) -> None:
+        """Wait until the index is ONLINE and ready to accept sync requests.
+
+        Uses the SDK's built-in wait_until_ready() which polls
+        index.describe()["status"]["detailed_state"] every 30 seconds.
+
+        State families (from SDK source):
+          - PROVISIONING* — index still initializing, keep waiting
+          - ONLINE*       — index ready, stop waiting
+          - OFFLINE*      — index failed, raises Exception
+        """
+        logger.info(f"Waiting for index to be ONLINE: {self.index_name}")
+        index = self.client.get_index(index_name=self.index_name)
+        # wait_until_ready blocks until detailed_state contains "ONLINE".
+        # It raises immediately if the state contains "OFFLINE".
+        index.wait_until_ready(verbose=True)
 
     def create_endpoint_if_not_exists(self) -> None:
         """Create vector search endpoint if it doesn't exist."""
@@ -70,8 +111,10 @@ class VectorSearchManager:
             )
             logger.info(f"✓ Vector search endpoint created: {self.endpoint_name}")
         else:
-            # Endpoint already exists — nothing to do
-            logger.info(f"✓ Vector search endpoint already exist: {self.endpoint_name}")
+            # Endpoint exists but may still be provisioning — poll until ONLINE
+            # before returning, otherwise subsequent index operations will fail
+            # with "endpoint is not ready yet".
+            self._wait_for_endpoint_online()
 
     def create_or_get_index(self) -> VectorSearchIndex:
         """Create or get vector search index.
@@ -123,10 +166,18 @@ class VectorSearchManager:
 
     def sync_index(self) -> None:
         """Sync the vector search index with the source table."""
-        # Get or create index
-        index = self.create_or_get_index()
+        # Step 1: create endpoint (if needed) and wait until ONLINE.
+        # create_or_get_index calls create_endpoint_if_not_exists internally,
+        # which handles both creation and polling — do NOT call
+        # _wait_for_endpoint_online here since the endpoint may not exist yet.
+        self.create_or_get_index()
+
+        # Step 2: wait until the index is ONLINE and ready to accept sync requests
+        self._wait_for_index_ready()
+
+        # Step 3: trigger the sync — endpoint and index are confirmed ready
         logger.info(f"Syncing vector search index: {self.index_name}")
-        # Sync the vector search index
+        index = self.client.get_index(index_name=self.index_name)
         index.sync()
         logger.info("✓ Index sync triggered")
 

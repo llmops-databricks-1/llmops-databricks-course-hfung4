@@ -2,8 +2,8 @@
 
 # Development environment
 dev:
-  catalog: dev
-  schema: open_alex
+  catalog: dev #mlops_dev
+  schema: open_alex #henryhfu
   volume: open_alex_files
   llm_endpoint: databricks-llama-4-maverick
   embedding_endpoint: databricks-gte-large-en
@@ -13,8 +13,8 @@ dev:
 
 # Acceptance/Staging environment
 acc:
-  catalog: staging
-  schema: open_alex
+  catalog: staging #mlops_acc
+  schema: open_alex #henryhfu
   volume: open_alex_files
   llm_endpoint: databricks-meta-llama-3-1-70b-instruct
   embedding_endpoint: databricks-gte-large-en
@@ -24,8 +24,8 @@ acc:
 
 # Production environment
 prd:
-  catalog: prod
-  schema: open_alex
+  catalog: prod #mlops_prd
+  schema: open_alex #henryhfu
   volume: open_alex_files
   llm_endpoint: databricks-meta-llama-3-1-70b-instruct
   embedding_endpoint: databricks-gte-large-en
