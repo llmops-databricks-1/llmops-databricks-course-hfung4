@@ -95,3 +95,9 @@ dmypy.json
 # VS code configuration
 .vscode
 .history
+
+# Databricks VS Code extension auto-generated files
+.databricks/
+
+# Scratch files
+scratch/

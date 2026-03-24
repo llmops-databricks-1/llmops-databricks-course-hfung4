@@ -1,0 +1,52 @@
+# Project Configuration for LLMOps Course
+
+# Development environment
+dev:
+  catalog: dev
+  schema: semantic_scholar
+  volume: semantic_scholar_files
+  llm_endpoint: databricks-llama-4-maverick
+  embedding_endpoint: databricks-gte-large-en
+  warehouse_id: 7077f4cb0e616c62
+  vector_search_endpoint: semantic_scholar_vs_endpoint
+  genie_space_id: 01f113061bf41578baff744a41bd9ab0
+
+# Acceptance/Staging environment
+acc:
+  catalog: staging
+  schema: semantic_scholar
+  volume: semantic_scholar_files
+  llm_endpoint: databricks-meta-llama-3-1-70b-instruct
+  embedding_endpoint: databricks-gte-large-en
+  warehouse_id: 7077f4cb0e616c62
+  vector_search_endpoint: semantic_scholar_vs_endpoint
+  genie_space_id: 01f113061bf41578baff744a41bd9ab0
+
+# Production environment
+prd:
+  catalog: prod
+  schema: semantic_scholar
+  volume: semantic_scholar_files
+  llm_endpoint: databricks-meta-llama-3-1-70b-instruct
+  embedding_endpoint: databricks-gte-large-en
+  warehouse_id: 7077f4cb0e616c62
+  vector_search_endpoint: semantic_scholar_vs_endpoint
+  genie_space_id: 01f113061bf41578baff744a41bd9ab0
+
+# Model configuration
+model_config:
+  temperature: 0.7
+  max_tokens: 2000
+  top_p: 0.95
+
+# Vector search configuration
+vector_search:
+  embedding_dimension: 1024
+  similarity_metric: cosine
+  num_results: 5
+
+# Chunking configuration
+chunking:
+  chunk_size: 512
+  chunk_overlap: 50
+  separator: "\n\n"
