@@ -1,6 +1,6 @@
 resources:
   jobs:
-    open_alex_data_ingestion_job:
+    data_ingestion_job:
       name: open_alex_data_ingestion
       tags:
         project_name: "open-alex-curator"
