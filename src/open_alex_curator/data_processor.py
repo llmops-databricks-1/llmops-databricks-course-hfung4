@@ -50,7 +50,9 @@ class DataProcessor:
 
         Args:
             spark: SparkSession instance
-            config: Config object with table configurations
+            config: Config object with table configurations. If
+                ``config.project.custom_end_date`` is set, it is used as the
+                pipeline end timestamp; otherwise defaults to now.
         """
         self.spark = spark
         self.cfg = config
@@ -60,7 +62,9 @@ class DataProcessor:
 
         # Current timestamp used as a run identifier and upper bound for paper search
         # I download papers from the start time (last pipeline run) to current timestamp
-        self.end = datetime.now(ZoneInfo("America/New_York")).strftime("%Y%m%d%H%M")
+        self.end = config.project.custom_end_date or datetime.now(
+            ZoneInfo("America/New_York")
+        ).strftime("%Y%m%d%H%M")
         # Databricks Volume path where PDFs for this run will be stored
         self.pdf_dir = f"/Volumes/{self.catalog}/{self.schema}/{self.volume}/{self.end}"
         # Create the PDF directory if it doesn't already exist
@@ -76,12 +80,19 @@ class DataProcessor:
         """
         Get the start time for the OpenAlex paper search range.
 
-        Uses max(processed) from the papers table if it exists (i.e. the timestamp of
-        the most recent prior run), otherwise defaults to 3 days ago (first run).
+        Priority order:
+        1. ``config.project.custom_start_date`` if set — used as-is.
+        2. ``max(processed)`` from the paper metadata table if it exists
+           (i.e. the timestamp of the most recent prior run).
+        3. 3 days ago — fallback for the very first run.
 
         Returns:
             start string in "YYYYMMDDHHMM" format
         """
+        if self.cfg.project.custom_start_date:
+            logger.info(f"Using custom start date: {self.cfg.project.custom_start_date}")
+            return self.cfg.project.custom_start_date
+
         # Neat way to check if metadata table exist in Unity Catalog
         # In Databricks, the spark.catalog is backed by the Unity Catalog
         if self.spark.catalog.tableExists(self.paper_metadata_table):

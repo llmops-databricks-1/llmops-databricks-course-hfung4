@@ -36,6 +36,8 @@ prd:
 # Shared across all environments
 query: "large language models machine learning recommender systems"
 max_results: 10  # Maximum papers to fetch per pipeline run, OpenAlex allows up to 200
+custom_start_date: "202601010000"   # optional — remove to use default logic
+custom_end_date: "202601150000"     # optional — remove to use now()
 
 # Model configuration
 model_config:
