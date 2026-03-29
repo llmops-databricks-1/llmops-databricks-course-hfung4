@@ -1,21 +1,10 @@
-"""
-This script downloads, parses, and chunks papers from OpenAlex
-and syncs the vector search index.
-
-Pipeline steps:
-1. Download new PDFs from OpenAlex
-2. Parse PDFs with AI Parse Documents
-3. Extract and clean chunks
-4. Sync embedded chunks to vector search index
-"""
-
 import argparse
 
 from loguru import logger
 from pyspark.sql import SparkSession
 
 from open_alex_curator.config import load_config
-from open_alex_curator.data_processor import DataProcessor
+from open_alex_curator.vector_search import VectorSearchManager
 
 spark = SparkSession.builder.getOrCreate()
 
@@ -32,7 +21,9 @@ logger.info(f" Environment: {env}")
 logger.info(f" Catalog: {cfg.project.catalog}")
 logger.info(f" Schema: {cfg.project.schema}")
 
-# Download new papers; create metadata table; parse, chunk and process chunked papers
-processor = DataProcessor(spark=spark, config=cfg)
-processor.process_and_save()
-logger.info("✓ Downloaded new papers, parsed with AI, and created chunks successfully!")
+
+# Sync Vector Search Index
+vs_manager = VectorSearchManager(config=cfg)
+vs_manager.sync_index()
+
+logger.info("✓ Created and sync vector search index successfully!")
