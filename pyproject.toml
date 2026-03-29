@@ -1,7 +1,7 @@
 [project]
-name = "semantic-scholar-curator"
+name = "open-alex-curator"
 dynamic = ["version"]
-description = "Semantic scholar curator"
+description = "OpenAlex curator"
 requires-python = ">=3.12, <3.13"
 dependencies = [
     "cffi==1.17.1",
@@ -19,7 +19,8 @@ dependencies = [
     "backoff==2.2.1",
     "mlflow==3.8.1",
     "nest-asyncio==1.6.0",
-    "semanticscholar==0.11.0",
+    "requests==2.32.5",
+    "pyalex==0.21",
     "databricks-agents==1.8.2",
     "psycopg==3.3.2",
     "psycopg-pool==3.3.0",
@@ -40,7 +41,7 @@ ci = ["pre-commit>=4.1.0, <5",
 include-package-data = true
 
 [tool.setuptools.package-data]
-"semantic_scholar_curator" = ["../../../project_config.yml"]
+"open_alex_curator" = ["../../../project_config.yml"]
 
 [build-system]
 requires = ["setuptools>=72.0"]
@@ -48,7 +49,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["semantic_scholar_curator*"]
+include = ["open_alex_curator*"]
 
 [tool.setuptools.dynamic]
 version = { file = "version.txt" }
