@@ -1,6 +1,6 @@
 resources:
   jobs:
-    data-processing-job:
+    data_processing_job:
       name: open-alex-data-processing
       schedule:
         quartz_cron_expression: "0 0 6 * * ?"
