@@ -51,7 +51,7 @@ from pyspark.sql import SparkSession
 
 from open_alex_curator.config import load_config, get_env
 
-# from open_alex_curator.mcp import ToolInfo
+from open_alex_curator.mcp import ToolInfo
 
 # COMMAND ----------
 
@@ -69,12 +69,13 @@ print(cfg.project.vector_search_endpoint)
 w = WorkspaceClient()
 
 # COMMAND ----------
-# Create VectorSearchClient, use temp personal access token (short-lived)
-# This is done in local development only and not used for production, since
-# we would use SPN instead
+# Create VectorSearchClient using the token from the existing WorkspaceClient
+# auth context (metadata-service / SPN).  Calling w.tokens.create() requires
+# the 'tokens' user entitlement and fails for service principals — so we
+# retrieve the bearer token that the SDK has already negotiated instead.
 vsc = VectorSearchClient(
     workspace_url=w.config.host,
-    personal_access_token=w.tokens.create(lifetime_seconds=1200).token_value,
+    personal_access_token=w.config.authenticate()["Authorization"].removeprefix("Bearer "),
 )
 
 # COMMAND ----------
