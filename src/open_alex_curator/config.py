@@ -113,18 +113,8 @@ def load_config(config_path: str = "project_config.yml", env: str = "dev") -> Co
     if env not in raw:
         raise ValueError(f"Environment '{env}' not found in config file")
 
-    # Merge top-level shared keys (e.g. query) into the env-specific config
-    project_data = {
-        **raw[env],
-        **{
-            k: v
-            for k, v in raw.items()
-            if k not in ["dev", "acc", "prd", "model_config", "vector_search", "chunking"]
-        },
-    }
-
     return Config(
-        project=ProjectConfig(**project_data),
+        project=ProjectConfig(**raw[env]),
         model=ModelConfig(**raw.get("model_config", {})),
         vector_search=VectorSearchConfig(**raw.get("vector_search", {})),
         chunking=ChunkingConfig(**raw.get("chunking", {})),
