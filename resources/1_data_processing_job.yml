@@ -23,7 +23,15 @@ resources:
             python_file: ../scripts/01_process_data.py
             parameters:
             - "--env"
-            - "${var.env}"  # Environment variable (dev/staging/prod)
+            - "${var.env}"
+            - "--query"
+            - "large language models machine learning recommender systems"
+            - "--max-results"
+            - "20"
+            - "--custom-start-date"
+            - "202509010000"
+            - "--custom-end-date"
+            - "202509300000"
         # - task_key: "create_sync_vector_index"
         #   environment_key: default
         #   max_retries: 0

@@ -44,27 +44,42 @@ class DataProcessor:
     - Saving chunks to Delta tables
     """
 
-    def __init__(self, spark: SparkSession, config: Config):
+    def __init__(
+        self,
+        spark: SparkSession,
+        config: Config,
+        query: str = "large language models machine learning",
+        max_results: int = 20,
+        custom_start_date: str | None = None,
+        custom_end_date: str | None = None,
+    ):
         """
         Initialize DataProcessor with Spark session and configuration.
 
         Args:
             spark: SparkSession instance
-            config: Config object with table configurations. If
-                ``config.project.custom_end_date`` is set, it is used as the
-                pipeline end timestamp; otherwise defaults to now.
+            config: Config object with table configurations.
+            query: Search query for the OpenAlex API.
+            max_results: Maximum number of papers to fetch per run (max 200).
+            custom_start_date: Override pipeline start date (YYYYMMDDHHMM).
+                If unset, derived from last run or defaults to 3 days ago.
+            custom_end_date: Override pipeline end date (YYYYMMDDHHMM).
+                If unset, defaults to now.
         """
         self.spark = spark
         self.cfg = config
         self.catalog = config.project.catalog
         self.schema = config.project.schema
         self.volume = config.project.volume
+        self.query = query
+        self.max_results = max_results
+        self.custom_start_date = custom_start_date
 
         # Current timestamp used as a run identifier and upper bound for paper search
         # I download papers from the start time (last pipeline run) to current timestamp
-        self.end = config.project.custom_end_date or datetime.now(
-            ZoneInfo("America/New_York")
-        ).strftime("%Y%m%d%H%M")
+        self.end = custom_end_date or datetime.now(ZoneInfo("America/New_York")).strftime(
+            "%Y%m%d%H%M"
+        )
         # Databricks Volume path where PDFs for this run will be stored
         self.pdf_dir = f"/Volumes/{self.catalog}/{self.schema}/{self.volume}/{self.end}"
         # Create the PDF directory if it doesn't already exist
@@ -89,9 +104,9 @@ class DataProcessor:
         Returns:
             start string in "YYYYMMDDHHMM" format
         """
-        if self.cfg.project.custom_start_date:
-            logger.info(f"Using custom start date: {self.cfg.project.custom_start_date}")
-            return self.cfg.project.custom_start_date
+        if self.custom_start_date:
+            logger.info(f"Using custom start date: {self.custom_start_date}")
+            return self.custom_start_date
 
         # Neat way to check if metadata table exist in Unity Catalog
         # In Databricks, the spark.catalog is backed by the Unity Catalog
@@ -167,7 +182,7 @@ class DataProcessor:
         # per_page=max_results caps the result count (max 100 per OpenAlex docs).
         works = (
             Works()
-            .search(self.cfg.project.query)
+            .search(self.query)
             .filter(
                 from_publication_date=start_date,
                 to_publication_date=end_date,
@@ -175,7 +190,7 @@ class DataProcessor:
             )
             # Tells openAlex the max number of papers to return in a API call
             # OpenAlex allows up to 200 papers per call
-            .get(per_page=self.cfg.project.max_results)
+            .get(per_page=self.max_results)
         )
 
         logger.info(

@@ -21,23 +21,6 @@ class ProjectConfig(BaseModel):
     genie_space_id: str | None = Field(
         None, description="Genie space ID for MCP integration"
     )
-    query: str = Field(..., description="Search query for OpenAlex paper ingestion")
-    max_results: int = Field(
-        100, description="Maximum number of papers to fetch per pipeline run"
-    )
-    custom_start_date: str | None = Field(
-        None,
-        description=(
-            "Override pipeline start date (YYYYMMDDHHMM). "
-            "If unset, derived from last run."
-        ),
-    )
-    custom_end_date: str | None = Field(
-        None,
-        description=(
-            "Override pipeline end date (YYYYMMDDHHMM). If unset, defaults to now."
-        ),
-    )
     system_prompt: str = Field(
         default=(
             "You are a helpful AI assistant that helps users"

@@ -33,12 +33,6 @@ prd:
   vector_search_endpoint: open_alex_vs_endpoint
   genie_space_id: 01f113061bf41578baff744a41bd9ab0
 
-# Shared across all environments
-query: "large language models machine learning recommender systems"
-max_results: 10  # Maximum papers to fetch per pipeline run, OpenAlex allows up to 200
-custom_start_date: "202601010000"   # optional — remove to use default logic
-custom_end_date: "202601150000"     # optional — remove to use now()
-
 # Model configuration
 model_config:
   temperature: 0.7
