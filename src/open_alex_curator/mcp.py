@@ -96,7 +96,7 @@ async def create_mcp_tools(w: WorkspaceClient, url_list: list[str]) -> list[Tool
     and pairs it with an execution function created by create_managed_exec_fn.
 
     Args:
-        w:        Authenticated Databricks WorkspaceClient passed through to
+        w:Authenticated Databricks WorkspaceClient passed through to
                   both DatabricksMCPClient (for auth) and each exec_fn closure.
         url_list: Ordered list of MCP server URLs to query.  All tools from all
                   servers are collected into a single flat list; if the same
