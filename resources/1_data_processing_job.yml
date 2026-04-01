@@ -27,18 +27,18 @@ resources:
             - "--query"
             - "large language models machine learning recommender systems"
             - "--max-results"
-            - "20"
+            - "1"
             - "--custom-start-date"
-            - "202509010000"
+            - "202603010000"
             - "--custom-end-date"
-            - "202509300000"
-        # - task_key: "create_sync_vector_index"
-        #   environment_key: default
-        #   max_retries: 0
-        #   depends_on:
-        #     - task_key: "preprocessing"
-        #   spark_python_task:
-        #     python_file: ../scripts/02_create_update_index.py
-        #     parameters:
-        #     - "--env"
-        #     - "${var.env}"  # Environment variable (dev/staging/prod)
+            - "202603310000"
+        - task_key: "create_sync_vector_index"
+          environment_key: default
+          max_retries: 0
+          depends_on:
+            - task_key: "preprocessing"
+          spark_python_task:
+            python_file: ../scripts/02_create_update_index.py
+            parameters:
+            - "--env"
+            - "${var.env}"  # Environment variable (dev/staging/prod)
