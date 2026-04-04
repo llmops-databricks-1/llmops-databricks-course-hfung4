@@ -1,5 +1,5 @@
 bundle:
-  name: semantic-scholar-curator
+  name: open-alex-curator
 
 artifacts:
   default:
@@ -17,6 +17,9 @@ variables:
   schedule_pause_status:
     description: schedule pause status
     default: PAUSED
+  env:
+    description: environment
+    default: dev # Environment name (dev, staging, prod)
 
 include:
   - resources/*.yml
@@ -26,5 +29,5 @@ targets:
     mode: development
     default: true
     workspace:
-      host: https://adb-2972378804555913.13.azuredatabricks.net
-      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
+      host: https://dbc-b1b2f91a-d102.cloud.databricks.com #https://adb-2972378804555913.13.azuredatabricks.net
+      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.target}/${bundle.name}

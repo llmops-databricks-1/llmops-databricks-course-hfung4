@@ -5,7 +5,7 @@ version: "3"
 #dotenv: [.env]
 
 vars:
-  PACKAGE_IMPORT_NAME: semantic_scholar_curator
+  PACKAGE_IMPORT_NAME: open_alex_curator
   PYTHON_VERSION: 3.12
 
 tasks:
@@ -71,10 +71,10 @@ tasks:
     cmds:
       - databricks bundle validate && databricks bundle deploy --target dev
 
-  run-pipeline-dev:
+  run-data-processing-dev:
     desc: Run the Databricks pipeline in the dev environment
     cmds:
-      - databricks bundle run deployment --target dev --no-wait
+      - databricks bundle run data_processing_job --target dev --no-wait
 
   help:
     desc: Print all tasks defined in the Taskfile
