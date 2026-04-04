@@ -15,8 +15,8 @@ from pydantic import BaseModel
 class ToolInfo(BaseModel):
     """Tool information for agent integration.
 
-    Bundles everything an agent needs to advertise and invoke a single tool:
-    the tool's name, its JSON schema (used to describe it to an LLM in the
+    Bundles everything an agent needs to know to invoke a single tool:
+    the tool's name, its JSON schema (used to describe the tool to an LLM in the
     OpenAI Responses API format), and the callable that actually runs it.
 
     Attributes:
@@ -88,7 +88,7 @@ def create_managed_exec_fn(
     return exec_fn
 
 
-async def create_mcp_tools(w: WorkspaceClient, url_list: list[str]) -> list[ToolInfo]:
+def create_mcp_tools(w: WorkspaceClient, url_list: list[str]) -> list[ToolInfo]:
     """Discover and wrap all tools exposed by a list of MCP servers.
 
     Iterates over each server URL, fetches the tool manifest via list_tools(),
@@ -111,15 +111,24 @@ async def create_mcp_tools(w: WorkspaceClient, url_list: list[str]) -> list[Tool
         # Connect to this server to retrieve its tool manifest.
         mcp_client = DatabricksMCPClient(server_url=server_url, workspace_client=w)
 
-        # list_tools() is async; await to get the full list before iterating.
-        mcp_tools = await mcp_client.list_tools()
+        # list_tools() is synchronous; returns a list directly.
+        mcp_tools = mcp_client.list_tools()
 
         for mcp_tool in mcp_tools:
             # Defensive copy so we don't mutate the schema object returned by
             # the MCP client; fall back to an empty dict if no schema provided.
-            input_schema = mcp_tool.inputSchema.copy() if mcp_tool.inputSchema else {}
+            raw_schema = mcp_tool.inputSchema.copy() if mcp_tool.inputSchema else {}
 
-            # Build the OpenAI Responses-format tool specification that the LLM
+            # Normalize the schema to only the fields the Chat Completions API
+            # accepts.  Extra JSON Schema fields (title, $schema, $defs, etc.)
+            # cause Databricks model serving endpoints to return a 400 error.
+            input_schema: dict = {"type": "object"}
+            if "properties" in raw_schema:
+                input_schema["properties"] = raw_schema["properties"]
+            if "required" in raw_schema:
+                input_schema["required"] = raw_schema["required"]
+
+            # Build the OpenAI Chat Completions-format tool specification that the LLM
             # will use to decide when and how to call this tool.
             tool_spec = {
                 "type": "function",
