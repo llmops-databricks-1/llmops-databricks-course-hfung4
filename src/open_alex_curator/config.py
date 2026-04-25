@@ -1,4 +1,4 @@
-"""Configuration management for semantic scholar curator."""
+"""Configuration management for OpenAlex curator."""
 
 from pathlib import Path
 

@@ -2,36 +2,36 @@
 
 # Development environment
 dev:
-  catalog: dev
-  schema: semantic_scholar
-  volume: semantic_scholar_files
+  catalog: mlops_dev #dev
+  schema: henryhfu #open_alex
+  volume: open_alex_files
   llm_endpoint: databricks-llama-4-maverick
   embedding_endpoint: databricks-gte-large-en
   warehouse_id: 7077f4cb0e616c62
-  vector_search_endpoint: semantic_scholar_vs_endpoint
-  genie_space_id: 01f113061bf41578baff744a41bd9ab0
+  vector_search_endpoint: open_alex_vs_endpoint
+  genie_space_id: 01f12afee6db130aa98d9280803739f4
 
 # Acceptance/Staging environment
 acc:
-  catalog: staging
-  schema: semantic_scholar
-  volume: semantic_scholar_files
+  catalog: mlops_acc #staging
+  schema: henryhfu #open_alex
+  volume: open_alex_files
   llm_endpoint: databricks-meta-llama-3-1-70b-instruct
   embedding_endpoint: databricks-gte-large-en
   warehouse_id: 7077f4cb0e616c62
-  vector_search_endpoint: semantic_scholar_vs_endpoint
-  genie_space_id: 01f113061bf41578baff744a41bd9ab0
+  vector_search_endpoint: open_alex_vs_endpoint
+  genie_space_id: 01f12afee6db130aa98d9280803739f4
 
 # Production environment
 prd:
-  catalog: prod
-  schema: semantic_scholar
-  volume: semantic_scholar_files
+  catalog: mlops_prd #prod
+  schema: henryhfu #open_alex
+  volume: open_alex_files
   llm_endpoint: databricks-meta-llama-3-1-70b-instruct
   embedding_endpoint: databricks-gte-large-en
   warehouse_id: 7077f4cb0e616c62
-  vector_search_endpoint: semantic_scholar_vs_endpoint
-  genie_space_id: 01f113061bf41578baff744a41bd9ab0
+  vector_search_endpoint: open_alex_vs_endpoint
+  genie_space_id: 01f12afee6db130aa98d9280803739f4
 
 # Model configuration
 model_config:
